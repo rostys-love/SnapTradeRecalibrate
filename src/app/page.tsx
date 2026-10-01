@@ -1,4 +1,4 @@
-import { requireSession } from "@/lib/auth";
+import { requireSession, showSignOut } from "@/lib/auth";
 import { getPortfolio, type Portfolio } from "@/lib/portfolio";
 import { portfolioTotals, type AccountSummary, type HoldingRow } from "@/lib/positions";
 import { connectWealthsimple, logout } from "./actions";
@@ -144,9 +144,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
               {disabled ? "Reconnect Wealthsimple" : hasConnection ? "Add / update connection" : "Connect Wealthsimple"}
             </button>
           </form>
-          <form action={logout}>
-            <button className="btn" type="submit">Sign out</button>
-          </form>
+          {showSignOut() && (
+            <form action={logout}>
+              <button className="btn" type="submit">Sign out</button>
+            </form>
+          )}
         </div>
       </header>
 

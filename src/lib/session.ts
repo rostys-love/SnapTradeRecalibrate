@@ -1,9 +1,15 @@
-// Single-user session: one password from SITE_PASSWORD, kept in a signed HttpOnly cookie.
+// Optional single-user session: one password from SITE_PASSWORD, kept in a signed HttpOnly cookie.
 // Used by src/proxy.ts and re-checked on the server before any portfolio data is read.
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "pc_session";
 export const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
+
+/**
+ * The built-in password gate is optional. Leave SITE_PASSWORD unset when the site is protected by
+ * Vercel Authentication (Project → Settings → Deployment Protection → All Deployments).
+ */
+export const passwordGateEnabled = () => Boolean(process.env.SITE_PASSWORD);
 
 function secret(): string {
   const s = process.env.SESSION_SECRET;

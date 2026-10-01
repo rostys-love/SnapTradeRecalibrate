@@ -31,7 +31,7 @@ See [docs/FINDINGS.md](docs/FINDINGS.md) for what the API actually returns for W
 
 A private, single-user dashboard:
 
-- **Password gate.** One password (`SITE_PASSWORD`), stored as a signed, HttpOnly cookie. Checked in `src/proxy.ts` and again on the server before any data is read.
+- **Access control.** By default the site relies on **Vercel Authentication**: only you, signed in to Vercel, can open it. Alternatively, set `SITE_PASSWORD` and `SESSION_SECRET` to use the app's own password page (a signed HttpOnly cookie, checked in `src/proxy.ts` and again on the server). Never run it with neither: the page shows your real balances.
 - **Connect Wealthsimple.** Sends you to SnapTrade's hosted Connection Portal. **This site never sees your Wealthsimple password**; SnapTrade handles the login and MFA, then redirects back. If a connection becomes disabled, the same button repairs it.
 - **Holdings.** Every open account with its holdings, value in CAD (USD converted at the Bank of Canada daily rate), gain vs cost where known, and asset mix. Managed portfolios are rebuilt from activity history and labelled as such. A portfolio line of credit is shown as a liability.
 
@@ -46,23 +46,18 @@ src/lib/session.ts        signed session cookie (tested)
 src/lib/fx.ts             Bank of Canada exchange rates
 ```
 
-### Deploy to Vercel
+### Deploy to Vercel (protected by Vercel Authentication)
 
-1. Push this repo to GitHub (done).
-2. On [vercel.com/new](https://vercel.com/new), import `SnapTradeRecalibrate`. Framework is detected as Next.js; keep the defaults.
-3. Before the first deploy, add these under **Environment Variables**:
+The order matters: turn protection on **before** the site has your SnapTrade keys, so it is never public with real data.
 
-   | Name | Value |
-   |---|---|
-   | `SNAPTRADE_CLIENT_ID` | from dashboard.snaptrade.com/api-key |
-   | `SNAPTRADE_CONSUMER_KEY` | from the same page (mark as Sensitive) |
-   | `SITE_PASSWORD` | a strong password you'll type to open the site |
-   | `SESSION_SECRET` | output of `openssl rand -base64 48` |
-   | `FINNHUB_API_KEY` | optional |
+1. On [vercel.com/new](https://vercel.com/new), import `SnapTradeRecalibrate`. Keep the defaults and **don't add any environment variables yet**. Deploy. (The page will only show "Couldn't reach SnapTrade", which is fine.)
+2. Project → **Settings** → **Deployment Protection** → enable **Vercel Authentication** with scope **All Deployments**. Save.
+3. In a private/incognito window, open your `.vercel.app` URL. You should get a Vercel login page, not the app. If you see the app, protection is not on; stop here.
+4. Project → **Settings** → **Environment Variables**, add `SNAPTRADE_CLIENT_ID` and `SNAPTRADE_CONSUMER_KEY` (as Sensitive), plus `FINNHUB_API_KEY` if you have one. Leave `SITE_PASSWORD` and `SESSION_SECRET` unset.
+5. **Deployments** → ⋯ on the latest → **Redeploy**, so the new variables take effect.
+6. Open the URL in your normal browser (signed in to Vercel). Your holdings load; **Connect Wealthsimple** is there if you need to add or repair a connection.
 
-4. Deploy, open the URL, sign in, and click **Connect Wealthsimple** (or just view your data if it's already connected in the SnapTrade dashboard).
-
-Changing an environment variable needs a redeploy (Deployments → ⋯ → Redeploy) to take effect.
+Changing an environment variable always needs a redeploy.
 
 ### Run locally
 
