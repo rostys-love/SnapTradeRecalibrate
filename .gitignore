@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Secrets: SnapTrade keys can read (and possibly trade) real brokerage accounts
+.env
+.env.local
+.env.*.local
+
+# Probe output contains real (masked) account data
+probe-report.json
+
+# Build and OS noise
+dist/
+.next/
+.vercel/
+*.log
+.DS_Store

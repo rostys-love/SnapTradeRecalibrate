@@ -1,0 +1,24 @@
+{
+  "name": "port-calibrate",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Port Calibrate: goal-aware portfolio insights for Wealthsimple accounts, built on the SnapTrade API.",
+  "scripts": {
+    "test": "node --import tsx --test src/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "probe": "tsx scripts/probe.ts",
+    "reconstruct": "tsx scripts/reconstruct.ts"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.5",
+    "snaptrade-typescript-sdk": "^12.2.15"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
