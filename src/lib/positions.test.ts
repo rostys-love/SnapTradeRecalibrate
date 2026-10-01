@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { accountKind, accountLabel, groupByAssetClass, normalizePositions, portfolioTotals } from "./positions";
+import { accountKind, accountLabel, disambiguateLabels, groupByAssetClass, mixLabel, normalizePositions, portfolioTotals } from "./positions";
 import { createSessionValue, isValidSession } from "./session";
 import { friendlyError } from "./errors";
 import { attachDetails, attachMarket, previouslyHeld, rangePosition, splitResiduals, type HoldingRow, type MarketData } from "./positions";
@@ -204,4 +204,23 @@ test("rebuild leftovers under $1 are split out; unpriced rows are kept", () => {
   ]);
   assert.deepEqual(kept.map((r) => r.ticker), ["ZAG.TO", "NOPRICE"]);
   assert.deepEqual(residual.map((r) => r.ticker), ["EQX.TO"]);
+});
+
+test("managed accounts are named by mix; leftover duplicates get the account suffix", () => {
+  const accs = [
+    { label: "TFSA · Managed portfolio", kind: "managed" as const, byAssetClass: [{ assetClass: "cash" as const, value: 25000 }], numberSuffix: "1111" },
+    { label: "TFSA · Managed portfolio", kind: "managed" as const, byAssetClass: [{ assetClass: "equity" as const, value: 6 }, { assetClass: "bond" as const, value: 4 }], numberSuffix: "2222" },
+    { label: "TFSA · Managed portfolio", kind: "managed" as const, byAssetClass: [{ assetClass: "equity" as const, value: 55 }, { assetClass: "bond" as const, value: 45 }], numberSuffix: "3333" },
+    { label: "TFSA · Self-directed", kind: "self_directed" as const, byAssetClass: [{ assetClass: "equity" as const, value: 1 }], numberSuffix: "4444" },
+  ];
+  disambiguateLabels(accs);
+  assert.deepEqual(accs.map((a) => a.label), [
+    "TFSA · Managed · Cash",
+    "TFSA · Managed · Balanced ···2222",
+    "TFSA · Managed · Balanced ···3333",
+    "TFSA · Self-directed",
+  ]);
+  assert.equal(mixLabel([{ assetClass: "equity", value: 8 }, { assetClass: "bond", value: 2 }]), "Growth");
+  assert.equal(mixLabel([{ assetClass: "equity", value: 3 }, { assetClass: "bond", value: 7 }]), "Conservative");
+  assert.equal(mixLabel([]), null);
 });

@@ -5,10 +5,11 @@ import { snaptrade } from "./snaptrade";
 import { fxProvider, rateToCad } from "./fx";
 import { getMarketData } from "./finnhub";
 import { buildHistories } from "./history";
+import { accountReturns, combinedReturns, extractFlows } from "./returns";
 import { friendlyError as errMsg } from "./errors";
 import {
   AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, attachDetails, attachMarket,
-  groupByAssetClass, normalizePositions, positionList, previouslyHeld, splitResiduals,
+  disambiguateLabels, groupByAssetClass, normalizePositions, positionList, previouslyHeld, splitResiduals,
 } from "./positions";
 
 export interface ConnectionStatus {
@@ -21,8 +22,9 @@ export interface Portfolio {
   fetchedAt: string;
   connections: ConnectionStatus[];
   accounts: AccountSummary[];
-  hiddenAccounts: number;    // closed, archived, or empty
+  hiddenAccounts: number;    // closed, archived, or under $1
   marketDataEnabled: boolean;
+  combined: ReturnType<typeof combinedReturns> | null;
 }
 
 async function buildToCad(currencies: Set<string>) {
@@ -68,13 +70,25 @@ async function loadAccount(a: any): Promise<AccountSummary> {
   if (totalCurrency !== "CAD") {
     base.totalCad *= await rateToCad(totalCurrency);
   }
-  if (kind === "line_of_credit") return base;
-
   const client = snaptrade();
+
+  if (kind === "line_of_credit") {
+    // Only the cost of borrowing matters here: interest and fees charged
+    try {
+      const acts = await fetchAllActivities(client, a.id);
+      const { toCad } = await buildToCad(new Set(acts.map((x) => x.currency?.code ?? "CAD")));
+      base.returns = accountReturns(acts, base.totalCad, toCad);
+      base.returns.warnings = [];
+    } catch (e) {
+      base.warnings.push(`Borrowing history unavailable (${errMsg(e)}).`);
+    }
+    return base;
+  }
+
   const [positionsRes, balancesRes, activitiesRes] = await Promise.allSettled([
     client.accountInformation.getAllAccountPositions({ accountId: a.id }),
     client.accountInformation.getUserAccountBalance({ accountId: a.id }),
-    kind === "cash" ? Promise.resolve([] as Activity[]) : fetchAllActivities(client, a.id),
+    fetchAllActivities(client, a.id),
   ]);
   if (positionsRes.status === "rejected") throw positionsRes.reason;
   if (balancesRes.status === "rejected") throw balancesRes.reason;
@@ -94,6 +108,10 @@ async function loadAccount(a: any): Promise<AccountSummary> {
   base.cashCad = balances.reduce((s, b) => s + toCad(num(b?.cash), b?.currency?.code ?? "CAD"), 0);
 
   const histories = buildHistories(activities, toCad);
+  if (activities.length) {
+    base.returns = accountReturns(activities, base.totalCad, toCad);
+    base.flows = extractFlows(activities, toCad).flows;
+  }
 
   const live = normalizePositions(rawPositions, toCad);
 
@@ -163,7 +181,7 @@ export async function getPortfolio(): Promise<Portfolio> {
   }));
 
   const all: any[] = (accountsRes.data as any[]) ?? [];
-  const visible = all.filter((a) => a.status === "open" && Math.abs(num(a.balance?.total?.amount)) >= 0.01);
+  const visible = all.filter((a) => a.status === "open" && Math.abs(num(a.balance?.total?.amount)) >= 1);
 
   const results = await Promise.allSettled(visible.map(loadAccount));
   const accounts = results.map((r, i): AccountSummary => {
@@ -177,6 +195,12 @@ export async function getPortfolio(): Promise<Portfolio> {
     };
   });
 
+  // Several "TFSA · Managed portfolio" accounts are common at Wealthsimple: name them by mix, then number
+  disambiguateLabels(
+    accounts.map((acc, i) => Object.assign(acc, { numberSuffix: String(visible[i]?.number ?? "").replace(/\W/g, "").slice(-4) || undefined })),
+  );
+  for (const acc of accounts) delete (acc as any).numberSuffix;
+
   const order = { managed: 0, self_directed: 1, cash: 2, other: 3, line_of_credit: 4 } as const;
   accounts.sort((x, y) => order[x.kind] - order[y.kind] || y.totalCad - x.totalCad);
 
@@ -186,5 +210,9 @@ export async function getPortfolio(): Promise<Portfolio> {
     accounts,
     hiddenAccounts: all.length - visible.length,
     marketDataEnabled: Boolean(process.env.FINNHUB_API_KEY),
+    combined: (() => {
+      const invest = accounts.filter((x) => x.kind !== "line_of_credit" && x.flows?.length);
+      return invest.length ? combinedReturns(invest.map((x) => ({ flows: x.flows!, valueCad: x.totalCad }))) : null;
+    })(),
   };
 }

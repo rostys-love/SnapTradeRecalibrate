@@ -1,6 +1,7 @@
 // View models for the holdings page. Pure functions, no network.
 import { AssetClass, classifyAssetClass, num } from "@/reconstruct/core";
 import { type HoldingHistory, type Trade, heldFor, historyMatches } from "./history";
+import type { AccountReturns, Flow } from "./returns";
 
 export type PriceSource = "brokerage" | "quote" | "last_trade" | "missing";
 
@@ -81,6 +82,8 @@ export interface AccountSummary {
   cashCad: number;
   holdings: HoldingRow[];
   pastHoldings: PastHolding[];
+  returns?: AccountReturns;
+  flows?: Flow[];               // external cash flows, for combined returns
   byAssetClass: { assetClass: AssetClass; value: number }[];
   warnings: string[];
   error?: string;
@@ -275,4 +278,31 @@ export function splitResiduals(rows: HoldingRow[], minCad = 1) {
   const residual: HoldingRow[] = [];
   for (const r of rows) (r.priceSource !== "missing" && Math.abs(r.valueCad) < minCad ? residual : kept).push(r);
   return { kept, residual };
+}
+
+/** Describes a portfolio by what it holds: Cash, Conservative, Balanced or Growth. */
+export function mixLabel(byAssetClass: { assetClass: AssetClass; value: number }[]): string | null {
+  const total = byAssetClass.reduce((s, r) => s + Math.max(r.value, 0), 0);
+  if (total <= 0) return null;
+  const share = (c: AssetClass) => byAssetClass.filter((r) => r.assetClass === c).reduce((s, r) => s + r.value, 0) / total;
+  const cash = share("cash");
+  const equity = share("equity") + share("crypto");
+  if (cash >= 0.9) return "Cash";
+  if (equity >= 0.75) return "Growth";
+  if (equity >= 0.45) return "Balanced";
+  return "Conservative";
+}
+
+/** Makes account labels distinguishable: managed accounts get their mix, remaining duplicates get ···1234. */
+export function disambiguateLabels(accounts: { label: string; kind: AccountKind; byAssetClass: { assetClass: AssetClass; value: number }[]; numberSuffix?: string }[]) {
+  for (const a of accounts) {
+    if (a.kind !== "managed") continue;
+    const mix = mixLabel(a.byAssetClass);
+    if (mix) a.label = a.label.replace("Managed portfolio", `Managed · ${mix}`);
+  }
+  const counts = new Map<string, number>();
+  for (const a of accounts) counts.set(a.label, (counts.get(a.label) ?? 0) + 1);
+  for (const a of accounts) {
+    if ((counts.get(a.label) ?? 0) > 1 && a.numberSuffix) a.label = `${a.label} ···${a.numberSuffix}`;
+  }
 }

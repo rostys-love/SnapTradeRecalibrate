@@ -161,3 +161,32 @@ details.past > summary:hover { color: var(--text); }
 details.past[open] > summary { color: var(--text); }
 details.past table td .name { padding-left: 0; }
 .past-note { padding: 0 18px 12px; }
+
+/* Where your growth came from */
+.returns { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 24px; overflow: hidden; }
+.returns-head { padding: 16px 18px 6px; }
+.returns-head h2 { font-size: 16px; margin: 0 0 8px; font-weight: 600; }
+.returns-total { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--muted); }
+.returns-total strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.returns-total strong.gain { color: var(--gain); }
+.returns-total strong.loss { color: var(--loss); }
+.returns-table .acct { font-weight: 600; font-size: 14px; }
+.returns-table td:first-child { min-width: 180px; }
+.share { height: 5px; margin-top: 6px; border-radius: 3px; background: var(--chip); overflow: hidden; max-width: 220px; }
+.share-bar { height: 100%; border-radius: 3px; }
+.share-bar.pos { background: var(--gain); }
+.share-bar.neg { background: var(--loss); }
+.costs { margin: 0; padding: 10px 18px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+details.method { padding: 10px 18px 12px; font-size: 13px; color: var(--muted); border-top: 1px solid var(--line); }
+details.method summary { cursor: pointer; }
+details.method ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; }
+details.method li.note { color: var(--warn-ink); }
+@media (max-width: 640px) {
+  .returns-table td:first-child { min-width: 0; }
+  .returns-table td:first-child .name { max-width: 40vw; }
+}
+@media (max-width: 640px) {
+  .returns-table td:first-child { white-space: normal; }
+  .returns-table th, .returns-table td { padding: 8px 8px; }
+  .share { max-width: 100%; }
+}

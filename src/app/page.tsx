@@ -2,6 +2,7 @@ import { requireSession, showSignOut } from "@/lib/auth";
 import { getPortfolio, type Portfolio } from "@/lib/portfolio";
 import { portfolioTotals, type AccountSummary } from "@/lib/positions";
 import PastHoldings from "./PastHoldings";
+import ReturnsOverview from "./ReturnsOverview";
 import HoldingsTable from "./HoldingsTable";
 import { connectWealthsimple, logout } from "./actions";
 import { friendlyError } from "@/lib/errors";
@@ -140,8 +141,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
           <p className="meta">
             Fetched {new Date(portfolio.fetchedAt).toLocaleString("en-CA", { timeZone: "America/Halifax" })} ·{" "}
             {portfolio.accounts.length} active account{portfolio.accounts.length > 1 ? "s" : ""}
-            {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or empty hidden`} · USD converted at the Bank of Canada daily rate
+            {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`} · USD converted at the Bank of Canada daily rate
           </p>
+          <ReturnsOverview portfolio={portfolio} />
           {portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} marketDataEnabled={portfolio.marketDataEnabled} />)}
         </>
       )}

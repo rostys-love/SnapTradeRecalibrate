@@ -34,6 +34,7 @@ A private, single-user dashboard:
 - **Access control.** By default the site relies on **Vercel Authentication**: only you, signed in to Vercel, can open it. Alternatively, set `SITE_PASSWORD` and `SESSION_SECRET` to use the app's own password page (a signed HttpOnly cookie, checked in `src/proxy.ts` and again on the server). Never run it with neither: the page shows your real balances.
 - **Connect Wealthsimple.** Sends you to SnapTrade's hosted Connection Portal. **This site never sees your Wealthsimple password**; SnapTrade handles the login and MFA, then redirects back. If a connection becomes disabled, the same button repairs it.
 - **Holdings.** Every open account with its holdings, value in CAD (USD converted at the Bank of Canada daily rate), gain vs cost where known, and asset mix. Managed portfolios are rebuilt from activity history and labelled as such. A portfolio line of credit is shown as a liability.
+- **Where your growth came from.** Per account: money put in (deposits and transfers in, minus withdrawals), value now, gain, its share of your total growth, and a money-weighted annual return (XIRR) once it has a year of history. Also totals fees and line-of-credit interest. Managed accounts are named by what they hold (Cash, Conservative, Balanced, Growth).
 - **Holding details (click a row).** Built from your activity history: when you first and last bought, how long you've held it, every buy and sell, average cost and realized gains (average-cost method, as used for Canadian ACB), and dividends received with yield on cost. Managed holdings get a cost basis this way too. With `FINNHUB_API_KEY` set, US listings also show today's change, your position's move in CAD, beta and the 52-week range. Finnhub's free plan generally doesn't cover TSX listings; those rows say so. Wealthsimple-held assets such as physical gold are never looked up, since their tickers collide with unrelated stocks.
 
 ```
@@ -44,6 +45,7 @@ src/proxy.ts              redirects anything without a session to /login
 src/lib/portfolio.ts      loads accounts from SnapTrade into view models
 src/lib/positions.ts      pure normalization and enrichment (tested)
 src/lib/history.ts        purchase history, holding dates, dividends, average cost (tested)
+src/lib/returns.ts        money in, gain, fees, money-weighted annual return (tested)
 src/lib/finnhub.ts        cached Finnhub quotes and metrics
 src/app/HoldingsTable.tsx expandable holdings table
 src/lib/session.ts        signed session cookie (tested)
