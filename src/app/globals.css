@@ -107,5 +107,49 @@ details.warnings ul { margin: 6px 0 0; padding-left: 18px; }
   .summary { grid-template-columns: 1fr; }
   .stat .v { font-size: 22px; }
   .topbar { flex-direction: column; align-items: flex-start; }
-  th, td { padding: 8px 12px; }
+  th, td { padding: 8px 10px; }
+}
+
+/* Expandable holding rows */
+.hrow { cursor: pointer; }
+.hrow:hover td { background: var(--chip); }
+.hrow.open td { background: var(--chip); border-bottom-color: transparent; }
+.expander { all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.expander:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+.chev { display: inline-block; font-size: 10px; color: var(--muted); transition: transform 0.15s ease; }
+.expander[aria-expanded="true"] .chev { transform: rotate(90deg); }
+td .name { padding-left: 0; }
+.hrow td:first-child .name { padding-left: 16px; }
+
+.drow > td { padding: 0; text-align: left; white-space: normal; background: var(--chip); border-top: 0; }
+.detail { padding: 6px 18px 18px 34px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.detail > section { min-width: 0; }
+.detail h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; margin: 0 0 8px; }
+.dgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 18px; }
+.dstat .dk { font-size: 12px; color: var(--muted); }
+.dstat .dv { font-variant-numeric: tabular-nums; font-weight: 550; }
+.dstat .dh { font-size: 11px; color: var(--muted); }
+.dstat.wide { grid-column: 1 / -1; max-width: 420px; }
+.small { font-size: 13px; margin: 6px 0 0; }
+
+.range { margin-top: 6px; }
+.range-track { position: relative; height: 6px; border-radius: 3px; background: linear-gradient(90deg, var(--loss), var(--line) 50%, var(--gain)); opacity: 0.85; }
+.range-marker { position: absolute; top: -4px; width: 4px; height: 14px; margin-left: -2px; border-radius: 2px; background: var(--text); }
+.range-labels { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; font-variant-numeric: tabular-nums; }
+
+table.trades { font-size: 13px; background: var(--surface); border-radius: 8px; }
+table.trades th, table.trades td { padding: 6px 12px; }
+.linkbtn { all: unset; cursor: pointer; color: var(--accent); font-size: 13px; margin-top: 6px; display: inline-block; }
+.linkbtn:focus-visible { outline: 2px solid var(--accent); border-radius: 4px; }
+
+@media (max-width: 640px) {
+  .detail { padding: 6px 12px 14px; }
+  .dgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Keep the detail panel inside the visible area when the table scrolls sideways */
+.drow .detail { position: sticky; left: 0; max-width: calc(100vw - 34px); }
+@media (max-width: 640px) {
+  .col-units, .col-price { display: none; }
+  .hrow td:first-child .name { max-width: 34vw; }
 }

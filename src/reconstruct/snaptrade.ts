@@ -16,6 +16,12 @@ export interface ReconstructOptions {
   fxProvider?: FxProvider;         // required if any holding is priced in another currency
   tolerancePct?: number;           // default 3
   fallbackProfile?: ManagedProfile;
+  /** Data the caller already fetched, to avoid repeat calls (personal keys allow ~10 requests/min per account). */
+  prefetched?: {
+    activities?: Activity[];
+    balances?: any[];
+    total?: { amount?: number | string | null; currency?: string | null } | null;
+  };
 }
 
 export interface AccountView {
@@ -66,13 +72,17 @@ export async function reconstructAccount(
 ): Promise<AccountView> {
   const tolerancePct = opts.tolerancePct ?? 3;
 
-  const [details, balances, activities] = await Promise.all([
-    withRetry(() => snaptrade.accountInformation.getUserAccountDetails({ accountId })),
-    withRetry(() => snaptrade.accountInformation.getUserAccountBalance({ accountId })),
-    fetchAllActivities(snaptrade, accountId),
+  const pre = opts.prefetched ?? {};
+  const [total, balancesData, activities] = await Promise.all([
+    pre.total !== undefined
+      ? Promise.resolve(pre.total as any)
+      : withRetry(() => snaptrade.accountInformation.getUserAccountDetails({ accountId })).then(
+          (d) => (d.data as any)?.balance?.total,
+        ),
+    pre.balances ?? withRetry(() => snaptrade.accountInformation.getUserAccountBalance({ accountId })).then((b) => b.data as any[]),
+    pre.activities ?? fetchAllActivities(snaptrade, accountId),
   ]);
 
-  const total: any = (details.data as any)?.balance?.total;
   const currency: string = total?.currency ?? "CAD";
   const reportedTotal = total?.amount != null ? num(total.amount) : null;
 
@@ -92,7 +102,7 @@ export async function reconstructAccount(
     : new Map<string, Quote>();
 
   for (const q of quotes.values()) if (q.currency !== currency) neededCurrencies.add(q.currency);
-  const cashRows: any[] = (balances.data as any[]) ?? [];
+  const cashRows: any[] = balancesData ?? [];
   for (const b of cashRows) {
     const c = b?.currency?.code;
     if (c && c !== currency) neededCurrencies.add(c);

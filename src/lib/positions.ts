@@ -1,9 +1,42 @@
 // View models for the holdings page. Pure functions, no network.
 import { AssetClass, classifyAssetClass, num } from "@/reconstruct/core";
+import { type HoldingHistory, type Trade, heldFor, historyMatches } from "./history";
 
 export type PriceSource = "brokerage" | "quote" | "last_trade" | "missing";
 
+/** Live market data for one listing (Finnhub). Prices are in the listing currency. */
+export interface MarketData {
+  price: number;
+  currency: string;
+  change: number | null;
+  changePct: number | null;
+  prevClose: number | null;
+  high52: number | null;
+  low52: number | null;
+  beta: number | null;
+}
+
+export interface HoldingDetail {
+  heldSince: string | null;
+  heldFor: string | null;
+  firstBought: string | null;
+  lastBought: string | null;
+  buyCount: number;
+  avgCostCad: number | null;
+  costSource: "brokerage" | "history" | null;
+  realizedGainCad: number;
+  dividendsTotalCad: number;
+  dividends12mCad: number;
+  yieldOnCostPct: number | null;
+  lastDividend: string | null;
+  trades: Trade[];            // newest first, capped
+  tradeCount: number;
+  historyComplete: boolean;   // history explains the units held
+}
+
 export interface HoldingRow {
+  key: string;                 // FIGI share class > FIGI > ticker; joins positions to activity history
+  marketEligible: boolean;     // safe to look up on a public exchange feed
   ticker: string;
   name: string;
   assetClass: AssetClass;
@@ -12,8 +45,12 @@ export interface HoldingRow {
   currency: string;
   valueCad: number;
   costCad: number | null;      // null when cost basis is unknown (reconstructed holdings)
+  costPerUnit?: number | null; // in `currency` (the same currency as `price`), when known
   gainPct: number | null;
   priceSource: PriceSource;
+  detail?: HoldingDetail;
+  market?: MarketData;
+  dayChangeCad?: number | null;
 }
 
 export type AccountKind = "self_directed" | "managed" | "cash" | "line_of_credit" | "other";
@@ -81,6 +118,9 @@ export function normalizePositions(
       const valueCad = price != null ? toCad(units * price, currency) : 0;
       const costCad = costPerUnit ? toCad(units * costPerUnit, currency) : null;
       return {
+        key: inst.figi_instrument?.figi_share_class || inst.figi_instrument?.figi_code || inst.symbol || "?",
+        // Wealthsimple-internal assets (e.g. physical gold, kind "other") share tickers with unrelated listings
+        marketEligible: ["stock", "etf", "adr"].includes(kind),
         ticker: inst.symbol ?? "?",
         name: inst.description ?? "",
         assetClass,
@@ -89,6 +129,7 @@ export function normalizePositions(
         currency,
         valueCad,
         costCad,
+        costPerUnit: costPerUnit || null,
         gainPct: costCad ? ((valueCad - costCad) / costCad) * 100 : null,
         priceSource: price != null ? "brokerage" : "missing",
       };
@@ -111,4 +152,70 @@ export function portfolioTotals(accounts: AccountSummary[]) {
     else assets += a.totalCad;
   }
   return { assets, liabilities, net: assets - liabilities };
+}
+
+const MAX_TRADES = 50;
+
+/**
+ * Adds purchase history, dates held, dividends and (where the brokerage has none) cost basis
+ * computed from history. Cost from history is only used when it explains the units held.
+ */
+export function attachDetails(rows: HoldingRow[], histories: Map<string, HoldingHistory>, now = new Date()): HoldingRow[] {
+  const byTicker = new Map([...histories.values()].map((h) => [h.ticker, h]));
+  return rows.map((row) => {
+    const h = histories.get(row.key) ?? byTicker.get(row.ticker);
+    if (!h) return row;
+    const complete = historyMatches(h, row.units);
+    let { costCad, gainPct } = row;
+    let costSource: HoldingDetail["costSource"] = costCad != null ? "brokerage" : null;
+    if (costCad == null && complete && h.totalCostCad) {
+      costCad = h.totalCostCad;
+      gainPct = ((row.valueCad - costCad) / costCad) * 100;
+      costSource = "history";
+    }
+    const avgCostCad = costCad != null && row.units > 0 ? costCad / row.units : null;
+    const costPerUnit = row.costPerUnit ?? (costSource === "history" && row.currency === "CAD" && avgCostCad != null ? avgCostCad : null);
+    return {
+      ...row,
+      costCad,
+      costPerUnit,
+      gainPct,
+      detail: {
+        heldSince: h.heldSince,
+        heldFor: heldFor(h.heldSince, now),
+        firstBought: h.firstBought,
+        lastBought: h.lastBought,
+        buyCount: h.buyCount,
+        avgCostCad,
+        costSource,
+        realizedGainCad: h.realizedGainCad,
+        dividendsTotalCad: h.dividendsTotalCad,
+        dividends12mCad: h.dividends12mCad,
+        yieldOnCostPct: costCad ? (h.dividends12mCad / costCad) * 100 : null,
+        lastDividend: h.lastDividend,
+        trades: h.trades.slice(0, MAX_TRADES),
+        tradeCount: h.trades.length,
+        historyComplete: complete,
+      },
+    };
+  });
+}
+
+/** Attaches live market data and today's change in CAD. */
+export function attachMarket(
+  rows: HoldingRow[],
+  market: Map<string, MarketData>,
+  toCad: (amount: number, currency: string) => number,
+): HoldingRow[] {
+  return rows.map((row) => {
+    const m = row.marketEligible ? market.get(row.ticker) : undefined;
+    if (!m) return row;
+    return { ...row, market: m, dayChangeCad: m.change != null ? toCad(m.change * row.units, m.currency) : null };
+  });
+}
+
+/** Where today's price sits in the 52-week range, 0..100, or null. */
+export function rangePosition(m: MarketData | undefined): number | null {
+  if (!m || m.high52 == null || m.low52 == null || m.high52 <= m.low52) return null;
+  return Math.min(100, Math.max(0, ((m.price - m.low52) / (m.high52 - m.low52)) * 100));
 }

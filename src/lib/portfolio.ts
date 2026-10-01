@@ -1,10 +1,14 @@
 import "server-only";
-import { reconstructAccount, finnhubPriceProvider, type PriceProvider } from "@/reconstruct/snaptrade";
-import { num } from "@/reconstruct/core";
+import { reconstructAccount, fetchAllActivities, type PriceProvider } from "@/reconstruct/snaptrade";
+import { num, type Activity } from "@/reconstruct/core";
 import { snaptrade } from "./snaptrade";
 import { fxProvider, rateToCad } from "./fx";
+import { getMarketData } from "./finnhub";
+import { buildHistories } from "./history";
+import { friendlyError as errMsg } from "./errors";
 import {
-  AccountSummary, HoldingRow, accountKind, accountLabel, groupByAssetClass, normalizePositions,
+  AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, attachDetails, attachMarket,
+  groupByAssetClass, normalizePositions,
 } from "./positions";
 
 export interface ConnectionStatus {
@@ -18,9 +22,8 @@ export interface Portfolio {
   connections: ConnectionStatus[];
   accounts: AccountSummary[];
   hiddenAccounts: number;    // closed, archived, or empty
+  marketDataEnabled: boolean;
 }
-
-import { friendlyError as errMsg } from "./errors";
 
 async function buildToCad(currencies: Set<string>) {
   const rates = new Map<string, number>([["CAD", 1]]);
@@ -37,11 +40,13 @@ async function buildToCad(currencies: Set<string>) {
   return { toCad: (amt: number, cur: string) => amt * (rates.get(cur) ?? 0), warnings };
 }
 
-function priceProvider(): PriceProvider | undefined {
-  const key = process.env.FINNHUB_API_KEY;
-  if (!key) return undefined;
-  // Finnhub quotes are in the listing currency: .TO tickers trade in CAD, the rest assumed USD
-  return finnhubPriceProvider(key, (t) => (t.endsWith(".TO") || t.endsWith(".V") ? "CAD" : "USD"));
+/** Finnhub-backed price provider that also remembers what it fetched, so rows can show it. */
+function marketPriceProvider(seen: Map<string, MarketData>): PriceProvider {
+  return async (tickers) => {
+    const data = await getMarketData(tickers);
+    for (const [t, d] of data) seen.set(t, d);
+    return new Map([...data].map(([t, d]) => [t, { price: d.price, currency: d.currency }]));
+  };
 }
 
 async function loadAccount(a: any): Promise<AccountSummary> {
@@ -65,23 +70,34 @@ async function loadAccount(a: any): Promise<AccountSummary> {
   if (kind === "line_of_credit") return base;
 
   const client = snaptrade();
-  const [positionsRes, balancesRes] = await Promise.all([
+  const [positionsRes, balancesRes, activitiesRes] = await Promise.allSettled([
     client.accountInformation.getAllAccountPositions({ accountId: a.id }),
     client.accountInformation.getUserAccountBalance({ accountId: a.id }),
+    kind === "cash" ? Promise.resolve([] as Activity[]) : fetchAllActivities(client, a.id),
   ]);
-  const rawPositions: any = positionsRes.data;
-  const balances: any[] = (balancesRes.data as any[]) ?? [];
+  if (positionsRes.status === "rejected") throw positionsRes.reason;
+  if (balancesRes.status === "rejected") throw balancesRes.reason;
+  const rawPositions: any = positionsRes.value.data;
+  const balances: any[] = (balancesRes.value.data as any[]) ?? [];
+  let activities: Activity[] = [];
+  if (activitiesRes.status === "fulfilled") activities = activitiesRes.value;
+  else base.warnings.push(`Activity history unavailable (${errMsg(activitiesRes.reason)}); purchase details hidden.`);
 
-  const currencies = new Set<string>();
+  // Every currency we might convert: positions, cash, activity amounts, and USD for US listings
+  const currencies = new Set<string>(["USD"]);
   for (const p of rawPositions?.positions ?? []) currencies.add(p?.currency ?? "CAD");
   for (const b of balances) currencies.add(b?.currency?.code ?? "CAD");
+  for (const act of activities) if (act.currency?.code) currencies.add(act.currency.code);
   const { toCad, warnings: fxWarnings } = await buildToCad(currencies);
   base.warnings.push(...fxWarnings);
   base.cashCad = balances.reduce((s, b) => s + toCad(num(b?.cash), b?.currency?.code ?? "CAD"), 0);
 
+  const histories = buildHistories(activities, toCad);
+
   const live = normalizePositions(rawPositions, toCad);
   if (live.length > 0 || kind === "cash") {
-    base.holdings = live;
+    const market = await getMarketData(live.filter((h) => h.marketEligible).map((h) => h.ticker));
+    base.holdings = attachMarket(attachDetails(live, histories), market, toCad);
     base.byAssetClass = groupByAssetClass([
       ...live.map((h) => ({ assetClass: h.assetClass, value: h.valueCad })),
       { assetClass: "cash", value: kind === "cash" ? base.totalCad - live.reduce((s, h) => s + h.valueCad, 0) : base.cashCad },
@@ -89,17 +105,21 @@ async function loadAccount(a: any): Promise<AccountSummary> {
     return base;
   }
 
-  // Managed portfolios return no positions: rebuild them from activity history
+  // Managed portfolios return no positions: rebuild them from the activity history we already have
+  const seen = new Map<string, MarketData>();
   const view = await reconstructAccount(client, a.id, {
     fxProvider,
-    priceProvider: priceProvider(),
+    priceProvider: process.env.FINNHUB_API_KEY ? marketPriceProvider(seen) : undefined,
     fallbackProfile: "balanced",
+    prefetched: { activities, balances, total: a.balance?.total ?? null },
   });
   base.status = view.status;
   base.cashCad = view.cash;
   base.warnings.push(...view.warnings);
-  base.holdings = view.holdings.map(
+  const rows = view.holdings.map(
     (h): HoldingRow => ({
+      key: h.key,
+      marketEligible: h.assetClass !== "crypto",
       ticker: h.ticker,
       name: h.description,
       assetClass: h.assetClass,
@@ -112,6 +132,7 @@ async function loadAccount(a: any): Promise<AccountSummary> {
       priceSource: h.priceSource,
     }),
   );
+  base.holdings = attachMarket(attachDetails(rows, histories), seen, toCad);
   base.byAssetClass = groupByAssetClass(view.byAssetClass);
   return base;
 }
@@ -152,5 +173,6 @@ export async function getPortfolio(): Promise<Portfolio> {
     connections,
     accounts,
     hiddenAccounts: all.length - visible.length,
+    marketDataEnabled: Boolean(process.env.FINNHUB_API_KEY),
   };
 }

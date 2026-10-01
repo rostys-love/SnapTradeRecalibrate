@@ -1,6 +1,7 @@
 import { requireSession, showSignOut } from "@/lib/auth";
 import { getPortfolio, type Portfolio } from "@/lib/portfolio";
-import { portfolioTotals, type AccountSummary, type HoldingRow } from "@/lib/positions";
+import { portfolioTotals, type AccountSummary } from "@/lib/positions";
+import HoldingsTable from "./HoldingsTable";
 import { connectWealthsimple, logout } from "./actions";
 import { friendlyError } from "@/lib/errors";
 
@@ -8,9 +9,6 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
-const money = (v: number, currency = "CAD") =>
-  new Intl.NumberFormat("en-CA", { style: "currency", currency }).format(v);
-const units = (v: number) => (Math.abs(v) >= 100 ? v.toFixed(2) : v.toFixed(4));
 
 const STATUS_CHIP: Record<AccountSummary["status"], { text: string; tone: string }> = {
   live: { text: "Live positions", tone: "ok" },
@@ -21,12 +19,6 @@ const STATUS_CHIP: Record<AccountSummary["status"], { text: string; tone: string
   error: { text: "Failed to load", tone: "bad" },
 };
 
-const PRICE_LABEL: Record<HoldingRow["priceSource"], string> = {
-  brokerage: "",
-  quote: "live quote",
-  last_trade: "last trade",
-  missing: "no price",
-};
 
 function AssetMix({ account }: { account: AccountSummary }) {
   const total = account.byAssetClass.reduce((s, r) => s + Math.max(r.value, 0), 0);
@@ -50,7 +42,7 @@ function AssetMix({ account }: { account: AccountSummary }) {
   );
 }
 
-function AccountCard({ account }: { account: AccountSummary }) {
+function AccountCard({ account, marketDataEnabled }: { account: AccountSummary; marketDataEnabled: boolean }) {
   const chip = STATUS_CHIP[account.status];
   const isDebt = account.kind === "line_of_credit";
   return (
@@ -71,38 +63,7 @@ function AccountCard({ account }: { account: AccountSummary }) {
       {!isDebt && !account.error && <AssetMix account={account} />}
 
       {account.holdings.length > 0 ? (
-        <div className="table-scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Holding</th>
-                <th>Units</th>
-                <th>Price</th>
-                <th>Value (CAD)</th>
-                <th>Gain</th>
-              </tr>
-            </thead>
-            <tbody>
-              {account.holdings.map((h) => (
-                <tr key={h.ticker}>
-                  <td>
-                    <span className="ticker">{h.ticker}</span>
-                    <span className="name">{h.name}</span>
-                  </td>
-                  <td>{units(h.units)}</td>
-                  <td>
-                    {h.price != null ? money(h.price, h.currency) : "—"}
-                    {PRICE_LABEL[h.priceSource] && <span className="name">{PRICE_LABEL[h.priceSource]}</span>}
-                  </td>
-                  <td>{cad.format(h.valueCad)}</td>
-                  <td className={h.gainPct == null ? "muted" : h.gainPct >= 0 ? "gain" : "loss"}>
-                    {h.gainPct == null ? "—" : `${h.gainPct >= 0 ? "+" : ""}${h.gainPct.toFixed(1)}%`}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <HoldingsTable rows={account.holdings} marketDataEnabled={marketDataEnabled} />
       ) : (
         !isDebt && !account.error && <div className="empty">No individual holdings — this account is held as cash.</div>
       )}
@@ -178,7 +139,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             {portfolio.accounts.length} active account{portfolio.accounts.length > 1 ? "s" : ""}
             {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or empty hidden`} · USD converted at the Bank of Canada daily rate
           </p>
-          {portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} />)}
+          {portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} marketDataEnabled={portfolio.marketDataEnabled} />)}
         </>
       )}
     </main>
