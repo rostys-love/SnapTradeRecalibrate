@@ -1,6 +1,7 @@
 import { requireSession, showSignOut } from "@/lib/auth";
 import { getPortfolio, type Portfolio } from "@/lib/portfolio";
 import { portfolioTotals, type AccountSummary } from "@/lib/positions";
+import PastHoldings from "./PastHoldings";
 import HoldingsTable from "./HoldingsTable";
 import { connectWealthsimple, logout } from "./actions";
 import { friendlyError } from "@/lib/errors";
@@ -67,6 +68,8 @@ function AccountCard({ account, marketDataEnabled }: { account: AccountSummary; 
       ) : (
         !isDebt && !account.error && <div className="empty">No individual holdings — this account is held as cash.</div>
       )}
+
+      <PastHoldings items={account.pastHoldings} />
 
       {account.warnings.length > 0 && (
         <details className="warnings">

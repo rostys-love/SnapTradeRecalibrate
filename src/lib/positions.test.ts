@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { accountKind, accountLabel, groupByAssetClass, normalizePositions, portfolioTotals } from "./positions";
 import { createSessionValue, isValidSession } from "./session";
 import { friendlyError } from "./errors";
-import { attachDetails, attachMarket, rangePosition, type HoldingRow, type MarketData } from "./positions";
+import { attachDetails, attachMarket, previouslyHeld, rangePosition, splitResiduals, type HoldingRow, type MarketData } from "./positions";
 import { buildHistories } from "./history";
 
 // Shape copied from a live getAllAccountPositions response (values changed)
@@ -48,7 +48,7 @@ test("classifies Wealthsimple account types", () => {
 });
 
 test("totals treat a line of credit as a liability", () => {
-  const base = { id: "", label: "", status: "live" as const, cashCad: 0, holdings: [], byAssetClass: [], warnings: [] };
+  const base = { id: "", label: "", status: "live" as const, cashCad: 0, holdings: [], pastHoldings: [], byAssetClass: [], warnings: [] };
   const t = portfolioTotals([
     { ...base, kind: "managed", totalCad: 1000 },
     { ...base, kind: "self_directed", totalCad: 500 },
@@ -147,4 +147,61 @@ test("unified positions carry a FIGI key and market eligibility", () => {
   assert.equal(rows.find((r) => r.ticker === "AMZN")!.key, "SC1");
   assert.equal(rows.find((r) => r.ticker === "AMZN")!.marketEligible, true);
   assert.equal(rows.find((r) => r.ticker === "GOLD")!.marketEligible, false);
+});
+
+test("reads the SDK's `results` field (and the MCP connector's `positions`)", () => {
+  const item = { instrument: { kind: "etf", symbol: "VFV.TO", description: "S&P 500" }, units: "2", price: "10", currency: "CAD" };
+  const toCadId = (a: number) => a;
+  assert.equal(normalizePositions({ results: [item], data_freshness: {} }, toCadId).length, 1, "SDK shape");
+  assert.equal(normalizePositions({ positions: [item] }, toCadId).length, 1, "MCP shape");
+  assert.equal(normalizePositions([item], toCadId).length, 1, "bare array");
+  assert.equal(normalizePositions({}, toCadId).length, 0);
+});
+
+test("previously held: sold positions listed with realized gain; anything still held is excluded", () => {
+  const s = (t: string, sc: string, d = "") => ({ symbol: t, description: d, figi_instrument: { figi_share_class: sc } });
+  const H = buildHistories(
+    [
+      { type: "BUY", units: 10, price: 2, amount: -20, currency: { code: "CAD" }, trade_date: "2024-01-10", symbol: s("TWG", "SC-TWG", "Top Wealth") },
+      { type: "SELL", units: -10, price: 0.5, amount: 5, currency: { code: "CAD" }, trade_date: "2025-03-01", symbol: s("TWG", "SC-TWG") },
+      { type: "BUY", units: 2, price: 10, amount: -20, currency: { code: "CAD" }, trade_date: "2024-05-01", symbol: s("CMBT", "SC-CMBT", "Cmb.Tech") },
+      { type: "SELL", units: -2, price: 30, amount: 60, currency: { code: "CAD" }, trade_date: "2026-02-01", symbol: s("CMBT", "SC-CMBT") },
+      // still held, partly sold: must not appear
+      { type: "BUY", units: 5, price: 100, amount: -500, currency: { code: "CAD" }, trade_date: "2024-01-01", symbol: s("VFV.TO", "SC-VFV") },
+      { type: "SELL", units: -1, price: 120, amount: 120, currency: { code: "CAD" }, trade_date: "2025-01-01", symbol: s("VFV.TO", "SC-VFV") },
+      // never sold: not "previously held" either
+      { type: "BUY", units: 1, price: 50, amount: -50, currency: { code: "CAD" }, trade_date: "2024-01-01", symbol: s("APTX.TO", "SC-APTX") },
+    ],
+    undefined,
+    new Date("2026-10-01T00:00:00Z"),
+  );
+  const current = [row({ key: "SC-VFV", ticker: "VFV.TO" })];
+  const past = previouslyHeld(H, current);
+  assert.deepEqual(past.map((p) => p.ticker), ["CMBT", "TWG"]); // newest sale first
+  const cmbt = past[0];
+  assert.equal(cmbt.name, "Cmb.Tech");
+  assert.equal(cmbt.realizedGainCad, 40);
+  assert.equal(cmbt.realizedPct, 200);
+  assert.equal(cmbt.heldFor, "1 yr 9 mo");
+  const twg = past[1];
+  assert.equal(twg.realizedGainCad, -15);
+  assert.equal(twg.realizedPct, -75);
+});
+
+test("a ticker still held under a different key is not listed as sold", () => {
+  const H = buildHistories([
+    { type: "BUY", units: 1, price: 10, amount: -10, currency: { code: "CAD" }, trade_date: "2024-01-01", symbol: { symbol: "EQX.TO" } },
+    { type: "SELL", units: -0.5, price: 12, amount: 6, currency: { code: "CAD" }, trade_date: "2024-02-01", symbol: { symbol: "EQX.TO" } },
+  ]);
+  assert.equal(previouslyHeld(H, [row({ key: "FIGI-EQX", ticker: "EQX.TO" })]).length, 0);
+});
+
+test("rebuild leftovers under $1 are split out; unpriced rows are kept", () => {
+  const { kept, residual } = splitResiduals([
+    row({ ticker: "ZAG.TO", valueCad: 500 }),
+    row({ ticker: "EQX.TO", valueCad: 0.06 }),
+    row({ ticker: "NOPRICE", valueCad: 0, priceSource: "missing" }),
+  ]);
+  assert.deepEqual(kept.map((r) => r.ticker), ["ZAG.TO", "NOPRICE"]);
+  assert.deepEqual(residual.map((r) => r.ticker), ["EQX.TO"]);
 });

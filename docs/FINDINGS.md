@@ -13,7 +13,7 @@ Findings from probing a live Wealthsimple connection through SnapTrade (October 
 
 - Self-directed accounts return full positions.
 - **Managed portfolios return an empty `positions` list**, even when funded.
-- Schema: `{ positions: [{ instrument: { kind, symbol, description, currency, exchange, figi_instrument }, units, price, cost_basis, currency }], data_freshness }`.
+- Schema (SDK / REST): `{ results: [{ instrument: { kind, symbol, description, currency, exchange, figi_instrument }, units, price, cost_basis, currency }], data_freshness }`. **The SnapTrade MCP connector renames `results` to `positions`**, so don't copy field names from MCP output into SDK code.
   - Numbers come back as **strings**.
   - `cost_basis` is per unit.
   - `instrument.kind` is `stock`, `etf`, or `other`. Physical gold is `kind: "other"` on exchange `WST-PRECIOUS-METAL`.

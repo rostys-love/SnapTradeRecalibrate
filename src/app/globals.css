@@ -151,5 +151,13 @@ table.trades th, table.trades td { padding: 6px 12px; }
 .drow .detail { position: sticky; left: 0; max-width: calc(100vw - 34px); }
 @media (max-width: 640px) {
   .col-units, .col-price { display: none; }
-  .hrow td:first-child .name { max-width: 34vw; }
+  .hrow td:first-child .name, details.past td:first-child .name { max-width: 34vw; }
 }
+
+/* Previously held */
+details.past { border-top: 1px solid var(--line); }
+details.past > summary { cursor: pointer; padding: 12px 18px; font-size: 14px; color: var(--muted); list-style-position: inside; }
+details.past > summary:hover { color: var(--text); }
+details.past[open] > summary { color: var(--text); }
+details.past table td .name { padding-left: 0; }
+.past-note { padding: 0 18px 12px; }

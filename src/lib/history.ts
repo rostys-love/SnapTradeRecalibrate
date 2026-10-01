@@ -13,6 +13,7 @@ export interface Trade {
 export interface HoldingHistory {
   key: string;
   ticker: string;
+  name: string;
   trades: Trade[];           // newest first
   buyCount: number;
   firstBought: string | null;
@@ -22,6 +23,11 @@ export interface HoldingHistory {
   avgCostCad: number | null; // per unit
   totalCostCad: number | null;
   realizedGainCad: number;
+  sellCount: number;
+  lastSold: string | null;
+  proceedsCad: number;       // cash received from all sales
+  costOfSoldCad: number;     // average cost of the units sold
+  boughtCad: number;         // everything ever spent buying
   dividendsTotalCad: number;
   dividends12mCad: number;
   lastDividend: string | null;
@@ -46,13 +52,15 @@ export function buildHistories(
     let h = out.get(key);
     if (!h) {
       h = {
-        key, ticker: a.symbol!.symbol ?? key, trades: [], buyCount: 0, firstBought: null, lastBought: null,
-        heldSince: null, units: 0, avgCostCad: null, totalCostCad: 0, realizedGainCad: 0,
+        key, ticker: a.symbol!.symbol ?? key, name: a.symbol!.description ?? "", trades: [], buyCount: 0,
+        firstBought: null, lastBought: null, heldSince: null, units: 0, avgCostCad: null, totalCostCad: 0,
+        realizedGainCad: 0, sellCount: 0, lastSold: null, proceedsCad: 0, costOfSoldCad: 0, boughtCad: 0,
         dividendsTotalCad: 0, dividends12mCad: 0, lastDividend: null,
       };
       out.set(key, h);
     }
     if (a.symbol!.symbol) h.ticker = a.symbol!.symbol; // latest ticker wins (input sorted ascending)
+    if (a.symbol!.description) h.name = a.symbol!.description;
     return h;
   };
 
@@ -88,6 +96,7 @@ export function buildHistories(
       if (h.units <= DUST) h.heldSince = date; // a new position starts
       h.units += units;
       h.totalCostCad = (h.totalCostCad ?? 0) + cost;
+      h.boughtCad += cost;
       if (BUY_TYPES.has(type)) {
         h.buyCount += 1;
         h.firstBought ??= date;
@@ -99,6 +108,10 @@ export function buildHistories(
       const avg = h.units > DUST ? (h.totalCostCad ?? 0) / h.units : 0;
       const proceeds = Math.abs(amountCad) > 0 ? Math.abs(amountCad) : toCad(sold * price, currency);
       h.realizedGainCad += proceeds - avg * sold;
+      h.proceedsCad += proceeds;
+      h.costOfSoldCad += avg * sold;
+      h.sellCount += 1;
+      h.lastSold = date;
       h.totalCostCad = (h.totalCostCad ?? 0) - avg * sold;
       h.units -= -units;
       if (h.units <= DUST) {

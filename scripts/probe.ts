@@ -53,11 +53,11 @@ async function probeAccount(account: any) {
     : { error: errMsg(balances.reason) };
 
   // Unified positions schema (verified against a live Wealthsimple account):
-  // { positions: [{ instrument: { kind, symbol, description, currency, exchange, figi_instrument },
+  // { results: [{ instrument: { kind, symbol, description, currency, exchange, figi_instrument },
   //   units, price, cost_basis, currency }] }, with numbers returned as strings.
   // Managed Wealthsimple portfolios return an empty list; reconstruct those from activities.
   out.positions = positions.status === "fulfilled"
-    ? (((positions.value.data as any)?.positions ?? []) as any[]).map((p: any) => ({
+    ? (((positions.value.data as any)?.results ?? (positions.value.data as any)?.positions ?? []) as any[]).map((p: any) => ({
         ticker: p.instrument?.symbol,
         name: p.instrument?.description,
         kind: p.instrument?.kind,               // stock, etf, other...

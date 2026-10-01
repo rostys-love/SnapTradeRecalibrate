@@ -8,7 +8,7 @@ import { buildHistories } from "./history";
 import { friendlyError as errMsg } from "./errors";
 import {
   AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, attachDetails, attachMarket,
-  groupByAssetClass, normalizePositions,
+  groupByAssetClass, normalizePositions, positionList, previouslyHeld, splitResiduals,
 } from "./positions";
 
 export interface ConnectionStatus {
@@ -61,6 +61,7 @@ async function loadAccount(a: any): Promise<AccountSummary> {
     totalCad: num(a.balance?.total?.amount),
     cashCad: 0,
     holdings: [],
+    pastHoldings: [],
     byAssetClass: [],
     warnings: [],
   };
@@ -85,7 +86,7 @@ async function loadAccount(a: any): Promise<AccountSummary> {
 
   // Every currency we might convert: positions, cash, activity amounts, and USD for US listings
   const currencies = new Set<string>(["USD"]);
-  for (const p of rawPositions?.positions ?? []) currencies.add(p?.currency ?? "CAD");
+  for (const p of positionList(rawPositions)) currencies.add(p?.currency ?? "CAD");
   for (const b of balances) currencies.add(b?.currency?.code ?? "CAD");
   for (const act of activities) if (act.currency?.code) currencies.add(act.currency.code);
   const { toCad, warnings: fxWarnings } = await buildToCad(currencies);
@@ -95,9 +96,13 @@ async function loadAccount(a: any): Promise<AccountSummary> {
   const histories = buildHistories(activities, toCad);
 
   const live = normalizePositions(rawPositions, toCad);
-  if (live.length > 0 || kind === "cash") {
+
+  // Only managed portfolios are rebuilt from history: SnapTrade gives them no positions. Every other
+  // account uses Wealthsimple's positions as the truth, even when that list is empty (all cash).
+  if (kind !== "managed" || live.length > 0) {
     const market = await getMarketData(live.filter((h) => h.marketEligible).map((h) => h.ticker));
     base.holdings = attachMarket(attachDetails(live, histories), market, toCad);
+    base.pastHoldings = previouslyHeld(histories, base.holdings);
     base.byAssetClass = groupByAssetClass([
       ...live.map((h) => ({ assetClass: h.assetClass, value: h.valueCad })),
       { assetClass: "cash", value: kind === "cash" ? base.totalCad - live.reduce((s, h) => s + h.valueCad, 0) : base.cashCad },
@@ -105,7 +110,6 @@ async function loadAccount(a: any): Promise<AccountSummary> {
     return base;
   }
 
-  // Managed portfolios return no positions: rebuild them from the activity history we already have
   const seen = new Map<string, MarketData>();
   const view = await reconstructAccount(client, a.id, {
     fxProvider,
@@ -119,7 +123,8 @@ async function loadAccount(a: any): Promise<AccountSummary> {
   const rows = view.holdings.map(
     (h): HoldingRow => ({
       key: h.key,
-      marketEligible: h.assetClass !== "crypto",
+      // Wealthsimple-held assets (e.g. physical gold) share tickers with unrelated public listings
+      marketEligible: h.assetClass !== "crypto" && !/physically[- ]backed/i.test(h.description),
       ticker: h.ticker,
       name: h.description,
       assetClass: h.assetClass,
@@ -132,7 +137,14 @@ async function loadAccount(a: any): Promise<AccountSummary> {
       priceSource: h.priceSource,
     }),
   );
-  base.holdings = attachMarket(attachDetails(rows, histories), seen, toCad);
+  const { kept, residual } = splitResiduals(rows);
+  if (residual.length) {
+    base.warnings.push(
+      `Hid ${residual.length} rounding leftover${residual.length > 1 ? "s" : ""} under $1 from the rebuild: ${residual.map((r) => r.ticker).join(", ")}.`,
+    );
+  }
+  base.holdings = attachMarket(attachDetails(kept, histories), seen, toCad);
+  base.pastHoldings = previouslyHeld(histories, base.holdings);
   base.byAssetClass = groupByAssetClass(view.byAssetClass);
   return base;
 }
@@ -160,7 +172,7 @@ export async function getPortfolio(): Promise<Portfolio> {
     const kind = accountKind(a.meta?.unifiedAccountType, a.account_category);
     return {
       id: a.id, label: accountLabel(a.raw_type, kind), kind, status: "error",
-      totalCad: num(a.balance?.total?.amount), cashCad: 0, holdings: [], byAssetClass: [],
+      totalCad: num(a.balance?.total?.amount), cashCad: 0, holdings: [], pastHoldings: [], byAssetClass: [],
       warnings: [], error: errMsg(r.reason),
     };
   });

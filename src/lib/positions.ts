@@ -53,6 +53,22 @@ export interface HoldingRow {
   dayChangeCad?: number | null;
 }
 
+/** Something you held in this account and have sold, from activity history. */
+export interface PastHolding {
+  key: string;
+  ticker: string;
+  name: string;
+  firstBought: string | null;
+  lastSold: string | null;
+  heldFor: string | null;      // first purchase to last sale
+  boughtCad: number;
+  proceedsCad: number;
+  realizedGainCad: number;
+  realizedPct: number | null;  // realized gain ÷ cost of the units sold
+  dividendsTotalCad: number;
+  sellCount: number;
+}
+
 export type AccountKind = "self_directed" | "managed" | "cash" | "line_of_credit" | "other";
 export type AccountStatus = "live" | "reconstructed" | "estimated" | "mismatch" | "no_reference" | "error";
 
@@ -64,6 +80,7 @@ export interface AccountSummary {
   totalCad: number;            // as reported by the brokerage (negative for a line of credit)
   cashCad: number;
   holdings: HoldingRow[];
+  pastHoldings: PastHolding[];
   byAssetClass: { assetClass: AssetClass; value: number }[];
   warnings: string[];
   error?: string;
@@ -96,12 +113,18 @@ export function accountLabel(rawType: string | undefined, kind: AccountKind): st
   return [type, KIND_LABEL[kind]].filter(Boolean).join(" · ");
 }
 
-/** Normalize the unified positions response ({ positions: [...] }, numbers as strings). */
+/** Position rows from getAllAccountPositions. The SDK returns `results`; the MCP connector renames it `positions`. */
+export function positionList(raw: unknown): any[] {
+  const r: any = raw;
+  return r?.results ?? r?.positions ?? (Array.isArray(r) ? r : []);
+}
+
+/** Normalize the unified positions response (numbers arrive as strings). */
 export function normalizePositions(
   raw: unknown,
   toCad: (amount: number, currency: string) => number,
 ): HoldingRow[] {
-  const list: any[] = (raw as any)?.positions ?? (Array.isArray(raw) ? raw : []);
+  const list = positionList(raw);
   return list
     .map((p): HoldingRow | null => {
       const inst = p?.instrument ?? {};
@@ -218,4 +241,38 @@ export function attachMarket(
 export function rangePosition(m: MarketData | undefined): number | null {
   if (!m || m.high52 == null || m.low52 == null || m.high52 <= m.low52) return null;
   return Math.min(100, Math.max(0, ((m.price - m.low52) / (m.high52 - m.low52)) * 100));
+}
+
+/**
+ * Holdings with at least one sale that are no longer held. Current holdings are matched by key and by
+ * ticker, so a position you still own is never listed here even if its history is incomplete.
+ */
+export function previouslyHeld(histories: Map<string, HoldingHistory>, current: HoldingRow[]): PastHolding[] {
+  const keys = new Set(current.map((r) => r.key));
+  const tickers = new Set(current.map((r) => r.ticker));
+  return [...histories.values()]
+    .filter((h) => h.sellCount > 0 && !keys.has(h.key) && !tickers.has(h.ticker))
+    .map((h) => ({
+      key: h.key,
+      ticker: h.ticker,
+      name: h.name,
+      firstBought: h.firstBought,
+      lastSold: h.lastSold,
+      heldFor: h.firstBought && h.lastSold ? heldFor(h.firstBought, new Date(`${h.lastSold}T23:59:59Z`)) : null,
+      boughtCad: h.boughtCad,
+      proceedsCad: h.proceedsCad,
+      realizedGainCad: h.realizedGainCad,
+      realizedPct: h.costOfSoldCad > 0 ? (h.realizedGainCad / h.costOfSoldCad) * 100 : null,
+      dividendsTotalCad: h.dividendsTotalCad,
+      sellCount: h.sellCount,
+    }))
+    .sort((a, b) => (b.lastSold ?? "").localeCompare(a.lastSold ?? ""));
+}
+
+/** Splits rebuilt holdings into real ones and rounding leftovers worth less than `minCad`. */
+export function splitResiduals(rows: HoldingRow[], minCad = 1) {
+  const kept: HoldingRow[] = [];
+  const residual: HoldingRow[] = [];
+  for (const r of rows) (r.priceSource !== "missing" && Math.abs(r.valueCad) < minCad ? residual : kept).push(r);
+  return { kept, residual };
 }
