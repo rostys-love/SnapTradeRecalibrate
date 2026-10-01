@@ -3,6 +3,8 @@ import { getPortfolio, type Portfolio } from "@/lib/portfolio";
 import { portfolioTotals, type AccountSummary } from "@/lib/positions";
 import PastHoldings from "./PastHoldings";
 import ReturnsOverview from "./ReturnsOverview";
+import GoalsBoard from "./GoalsBoard";
+import type { AccountForGoals } from "@/lib/goals";
 import HoldingsTable from "./HoldingsTable";
 import { connectWealthsimple, logout } from "./actions";
 import { friendlyError } from "@/lib/errors";
@@ -143,6 +145,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<Rec
             {portfolio.accounts.length} active account{portfolio.accounts.length > 1 ? "s" : ""}
             {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`} · USD converted at the Bank of Canada daily rate
           </p>
+          <GoalsBoard
+            accounts={portfolio.accounts
+              .filter((a) => a.kind !== "line_of_credit" && a.totalCad > 0)
+              .map((a): AccountForGoals => ({
+                id: a.id,
+                label: a.label,
+                valueCad: a.totalCad,
+                mix: a.byAssetClass.length ? a.byAssetClass : [{ assetClass: "cash", value: a.totalCad }],
+                pastReturnPct: a.returns?.annualReturnPct ?? null,
+              }))}
+          />
           <ReturnsOverview portfolio={portfolio} />
           {portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} marketDataEnabled={portfolio.marketDataEnabled} />)}
         </>
