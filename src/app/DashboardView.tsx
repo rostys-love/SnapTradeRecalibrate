@@ -1,6 +1,7 @@
 import type { Portfolio } from "@/lib/portfolio";
 import { portfolioTotals, type AccountSummary } from "@/lib/positions";
-import type { AccountForGoals } from "@/lib/goals";
+import type { AccountForGoals, Goal } from "@/lib/goals";
+import DemoBanner from "./DemoBanner";
 import PastHoldings from "./PastHoldings";
 import ReturnsOverview from "./ReturnsOverview";
 import GoalsBoard from "./GoalsBoard";
@@ -59,7 +60,7 @@ function ReturnBadge({ a }: { a: AccountSummary }) {
   return null;
 }
 
-function AccountCard({ account, marketDataEnabled }: { account: AccountSummary; marketDataEnabled: boolean }) {
+function AccountCard({ account, marketDataEnabled, sample }: { account: AccountSummary; marketDataEnabled: boolean; sample: boolean }) {
   const chip = STATUS_CHIP[account.status];
   const isDebt = account.kind === "line_of_credit";
   return (
@@ -81,7 +82,7 @@ function AccountCard({ account, marketDataEnabled }: { account: AccountSummary; 
       {!isDebt && !account.error && <div className="account-mix"><MixBar account={account} /></div>}
 
       {account.holdings.length > 0 ? (
-        <HoldingsTable rows={account.holdings} marketDataEnabled={marketDataEnabled} />
+        <HoldingsTable rows={account.holdings} marketDataEnabled={marketDataEnabled} sample={sample} />
       ) : (
         !isDebt && !account.error && <div className="empty">No individual holdings — this account is held as cash.</div>
       )}
@@ -98,7 +99,7 @@ function AccountCard({ account, marketDataEnabled }: { account: AccountSummary; 
   );
 }
 
-function Overview({ portfolio }: { portfolio: Portfolio }) {
+function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) {
   const totals = portfolioTotals(portfolio.accounts);
   const c = portfolio.combined;
   const invest = portfolio.accounts.filter((a) => a.kind !== "line_of_credit");
@@ -169,9 +170,9 @@ function Overview({ portfolio }: { portfolio: Portfolio }) {
       </div>
 
       <p className="meta">
-        Updated {new Date(portfolio.fetchedAt).toLocaleString("en-CA", { timeZone: "America/Halifax" })}
-        {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`} · USD converted at the Bank of
-        Canada daily rate
+        {demo ? "Sample data" : <>Updated {new Date(portfolio.fetchedAt).toLocaleString("en-CA", { timeZone: "America/Halifax" })}</>}
+        {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`} · USD converted at{" "}
+        {demo ? "a fixed sample rate" : "the Bank of Canada daily rate"}
       </p>
     </>
   );
@@ -182,14 +183,21 @@ export interface DashboardProps {
   loadError: string | null;
   justConnected: boolean;
   signOut: boolean;
+  /** Set for the sample-data demo: no connect button, separate browser storage, goals to start with. */
+  demo?: { seedGoals: Goal[] };
 }
 
-export default function DashboardView({ portfolio, loadError, justConnected, signOut }: DashboardProps) {
+const DEMO_NS = "pcdemo";
+
+export default function DashboardView({ portfolio, loadError, justConnected, signOut, demo }: DashboardProps) {
+  const storageNs = demo ? DEMO_NS : "pc";
   const disabled = portfolio?.connections.find((c) => c.disabled);
   const hasConnection = (portfolio?.connections.length ?? 0) > 0;
   const ready = Boolean(portfolio && portfolio.accounts.length > 0);
 
-  const actions = (
+  const actions = demo ? (
+    <span className="pill up demo-pill">Demo · sample data</span>
+  ) : (
     <>
       <form action={connectWealthsimple}>
         {disabled && <input type="hidden" name="reconnect" value={disabled.id} />}
@@ -205,7 +213,9 @@ export default function DashboardView({ portfolio, loadError, justConnected, sig
     </>
   );
 
-  const notices = (
+  const notices = demo ? (
+    <DemoBanner storageNs={DEMO_NS} />
+  ) : (
     <>
       {justConnected && <div className="banner">Connection updated. New data can take a minute to sync; refresh if anything is missing.</div>}
       {disabled && (
@@ -245,14 +255,14 @@ export default function DashboardView({ portfolio, loadError, justConnected, sig
   const creditLine: CreditLine | null = locAccount ? { id: locAccount.id, label: locAccount.label, owedCad: Math.abs(locAccount.totalCad) } : null;
 
   const tabs: Tab[] = [
-    { id: "overview", label: "Overview", content: <Overview portfolio={portfolio} /> },
-    { id: "goals", label: "Goals", content: <GoalsBoard accounts={goalAccounts} /> },
-    { id: "withdraw", label: "Need money", content: <WithdrawPlanner accounts={withdrawAccounts} loc={creditLine} /> },
+    { id: "overview", label: "Overview", content: <Overview portfolio={portfolio} demo={Boolean(demo)} /> },
+    { id: "goals", label: "Goals", content: <GoalsBoard accounts={goalAccounts} storageNs={storageNs} seedGoals={demo?.seedGoals} /> },
+    { id: "withdraw", label: "Need money", content: <WithdrawPlanner accounts={withdrawAccounts} loc={creditLine} storageNs={storageNs} seedGoals={demo?.seedGoals} /> },
     { id: "growth", label: "Growth", content: <ReturnsOverview portfolio={portfolio} /> },
     {
       id: "holdings",
       label: "Holdings",
-      content: portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} marketDataEnabled={portfolio.marketDataEnabled} />),
+      content: portfolio.accounts.map((a) => <AccountCard key={a.id} account={a} marketDataEnabled={portfolio.marketDataEnabled} sample={Boolean(demo)} />),
     },
   ];
   return <Shell tabs={tabs} actions={actions} notices={notices} />;

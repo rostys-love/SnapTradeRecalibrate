@@ -16,6 +16,7 @@ Built for the [SnapTrade student project program](https://snaptrade.com/students
 | Live quotes (Finnhub) | Wired as optional provider; TSX coverage unverified |
 | Goals timeline (cards, funding, projections) | Done; saved in the browser |
 | "I need money" withdrawal planner | Done, unit-tested (`src/lib/withdraw.ts`) |
+| Public demo on sample data | Done: `/demo`, or a keyless `DEMO_MODE=1` deployment |
 
 ## How it works
 
@@ -72,6 +73,20 @@ The order matters: turn protection on **before** the site has your SnapTrade key
 
 Changing an environment variable always needs a redeploy.
 
+### Public demo (sample data, no keys)
+
+The private site is locked to you, so nobody else can open it. The demo is the same app running on invented accounts: a made-up person with a managed TFSA and RRSP, a self-directed TFSA, a savings account and a line of credit. The sample data is produced in the shape SnapTrade returns (`src/lib/demo.ts`) and goes through the same code as live data, including rebuilding the managed portfolios from their trade history. It makes no network calls and reads no keys.
+
+- On any deployment, `/demo` shows it. On your private site that page is still behind Vercel's sign-in, which is handy for recording a video without showing real balances. (If you use the optional built-in password instead of Vercel Authentication, `/demo` is the one page left open.)
+- To give other people a link, deploy a **second** Vercel project from the same repository:
+  1. [vercel.com/new](https://vercel.com/new) → import `SnapTradeRecalibrate` again and give the project a different name (for example `port-calibrate-demo`).
+  2. Add exactly one environment variable: `DEMO_MODE` = `1`. **Do not add the SnapTrade or Finnhub keys to this project.**
+  3. Deploy, then open the project's `.vercel.app` URL in a private/incognito window. You should see the dashboard with a "This is a demo" banner. If Vercel asks you to log in instead, go to Settings → Deployment Protection and turn Vercel Authentication off for this project (or leave it on previews only).
+
+  With `DEMO_MODE=1` every page shows sample data, the Connect button is gone, and the SnapTrade client refuses to start even if keys were added by mistake. Leave your private project's protection exactly as it is.
+
+Goals and settings changed in the demo are kept in the visitor's browser under their own names, separate from real ones; "Reset demo" puts the sample goals back.
+
 ### Run locally
 
 ```bash
@@ -99,11 +114,15 @@ npm run reconstruct          # rebuild holdings for open managed accounts
 - The website is for one person (you). A Personal key must not power a site other people log in to with their own brokerages; that needs SnapTrade OAuth or a Commercial key.
 - Pages are sent with `Cache-Control: private, no-store` and `noindex`, so financial data isn't cached by Vercel's CDN or indexed by search engines.
 - This project is read-only. It never places orders.
+- The public demo is a separate deployment with `DEMO_MODE=1` and no keys. It contains only invented data, so there is nothing private in it to leak. Never set `DEMO_MODE` on the private project, and never add keys to the demo project.
 
 ## Project layout
 
 ```
 src/app, src/lib, src/proxy.ts the website (see above)
+src/lib/portfolio-build.ts     raw brokerage data → dashboard view model, for any data source
+src/lib/portfolio.ts           the live source (SnapTrade, Finnhub, Bank of Canada)
+src/lib/demo.ts                the sample-data source behind the demo (tested)
 src/reconstruct/core.ts        pure logic: aggregation, classification, pricing, reconciliation
 src/reconstruct/snaptrade.ts   SnapTrade I/O: pagination, retries, account reconstruction
 src/reconstruct/core.test.ts   unit tests (node:test)

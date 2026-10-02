@@ -46,7 +46,7 @@ function RangeBar({ row }: { row: HoldingRow }) {
   );
 }
 
-function Detail({ row, marketDataEnabled }: { row: HoldingRow; marketDataEnabled: boolean }) {
+function Detail({ row, marketDataEnabled, sample }: { row: HoldingRow; marketDataEnabled: boolean; sample?: boolean }) {
   const [showAll, setShowAll] = useState(false);
   const d = row.detail;
   const m = row.market;
@@ -121,7 +121,7 @@ function Detail({ row, marketDataEnabled }: { row: HoldingRow; marketDataEnabled
         <h3>Market</h3>
         {m ? (
           <div className="dgrid">
-            <Stat label="Price now" hint="Finnhub, may be delayed">{money(m.price, m.currency)}</Stat>
+            <Stat label="Price now" hint={sample ? "Sample price, not a real quote" : "Finnhub, may be delayed"}>{money(m.price, m.currency)}</Stat>
             <Stat label="Today">
               <span className={tone(m.change)}>
                 {m.change != null ? `${money(m.change, m.currency)} (${pct(m.changePct ?? 0)})` : "—"}
@@ -173,7 +173,7 @@ function Detail({ row, marketDataEnabled }: { row: HoldingRow; marketDataEnabled
   );
 }
 
-export default function HoldingsTable({ rows, marketDataEnabled }: { rows: HoldingRow[]; marketDataEnabled: boolean }) {
+export default function HoldingsTable({ rows, marketDataEnabled, sample }: { rows: HoldingRow[]; marketDataEnabled: boolean; sample?: boolean }) {
   const [open, setOpen] = useState<Set<string>>(new Set());
   const toggle = (id: string) =>
     setOpen((prev) => {
@@ -231,7 +231,7 @@ export default function HoldingsTable({ rows, marketDataEnabled }: { rows: Holdi
                 {isOpen && (
                   <tr className="drow" id={`detail-${id}`}>
                     <td colSpan={5}>
-                      <Detail row={h} marketDataEnabled={marketDataEnabled} />
+                      <Detail row={h} marketDataEnabled={marketDataEnabled} sample={sample} />
                     </td>
                   </tr>
                 )}

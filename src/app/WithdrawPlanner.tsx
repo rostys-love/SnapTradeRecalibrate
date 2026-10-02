@@ -7,9 +7,9 @@ import {
   LONG_HORIZON_YEARS, REPAY_CHOICES, TIER_REASON, planWithdrawal,
 } from "@/lib/withdraw";
 
-const GOALS_KEY = "pc_goals_v1";
-const BASIS_KEY = "pc_goals_basis_v1";
-const SETTINGS_KEY = "pc_withdraw_v1";
+const neverStored = (key: string) => {
+  try { return window.localStorage.getItem(key) === null; } catch { return true; }
+};
 const GOALS_EVENT = "pc-goals-changed"; // sent by GoalsBoard when goals are saved
 
 const cad = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD", maximumFractionDigits: 0 });
@@ -117,7 +117,12 @@ function OptionCard({ o, maxCost, amount, best, noRepay }: { o: SourceOption; ma
   );
 }
 
-export default function WithdrawPlanner({ accounts, loc }: { accounts: WithdrawAccount[]; loc: CreditLine | null }) {
+export default function WithdrawPlanner(
+  { accounts, loc, storageNs = "pc", seedGoals }: { accounts: WithdrawAccount[]; loc: CreditLine | null; storageNs?: string; seedGoals?: Goal[] },
+) {
+  const GOALS_KEY = `${storageNs}_goals_v1`;
+  const BASIS_KEY = `${storageNs}_goals_basis_v1`;
+  const SETTINGS_KEY = `${storageNs}_withdraw_v1`;
   const [s, setS] = useState<Settings>(DEFAULTS);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [basis, setBasis] = useState<ReturnBasis>("mix");
@@ -128,7 +133,7 @@ export default function WithdrawPlanner({ accounts, loc }: { accounts: WithdrawA
   useEffect(() => {
     const known = new Set(accounts.map((a) => a.id));
     const sync = () => {
-      setGoals(sanitizeGoals(read(GOALS_KEY, [])).map((g) => ({ ...g, sources: g.sources.filter((x) => known.has(x.accountId)) })));
+      setGoals(sanitizeGoals(seedGoals && neverStored(GOALS_KEY) ? seedGoals : read(GOALS_KEY, [])).map((g) => ({ ...g, sources: g.sources.filter((x) => known.has(x.accountId)) })));
       setBasis(read<ReturnBasis>(BASIS_KEY, "mix") === "past" ? "past" : "mix");
     };
     sync();
@@ -148,11 +153,11 @@ export default function WithdrawPlanner({ accounts, loc }: { accounts: WithdrawA
       window.removeEventListener(GOALS_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
-  }, [accounts]);
+  }, [accounts, seedGoals, GOALS_KEY, BASIS_KEY, SETTINGS_KEY]);
   useEffect(() => {
     if (!loaded) return;
     try { window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* still works for this visit */ }
-  }, [s, loaded]);
+  }, [s, loaded, SETTINGS_KEY]);
 
   const set = <K extends keyof Settings>(k: K, v: Settings[K]) => setS((p) => ({ ...p, [k]: v }));
   const purposeGoal = goals.find((g) => g.id === s.purpose);

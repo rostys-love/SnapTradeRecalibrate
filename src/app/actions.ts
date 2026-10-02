@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { SESSION_COOKIE } from "@/lib/session";
 import { snaptrade } from "@/lib/snaptrade";
+import { demoModeEnabled } from "@/lib/demo-mode";
 
 async function siteOrigin(): Promise<string> {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
@@ -18,6 +19,7 @@ async function siteOrigin(): Promise<string> {
  * This site never sees your Wealthsimple password. Pass a connection id to repair a disabled connection.
  */
 export async function connectWealthsimple(formData: FormData) {
+  if (demoModeEnabled()) redirect("/"); // the public demo never talks to SnapTrade
   await requireSession();
   const reconnect = String(formData.get("reconnect") ?? "") || undefined;
   const res = await snaptrade().authentication.loginSnapTradeUser({

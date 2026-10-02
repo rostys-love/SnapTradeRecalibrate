@@ -6,8 +6,12 @@ import {
   type AccountForGoals, type Goal, type GoalKind, type GoalProjection, type ReturnBasis,
 } from "@/lib/goals";
 
-const STORE_KEY = "pc_goals_v1";
-const BASIS_KEY = "pc_goals_basis_v1";
+// The demo keeps its goals under its own prefix, so sample goals never mix with real ones in one browser
+const storeKey = (ns: string) => `${ns}_goals_v1`;
+const basisKey = (ns: string) => `${ns}_goals_basis_v1`;
+const neverStored = (key: string) => {
+  try { return window.localStorage.getItem(key) === null; } catch { return true; }
+};
 const CARD_W = 168; // px, used to stack overlapping cards into rows
 const CARD_H = 84;
 
@@ -46,7 +50,9 @@ function writeStore(key: string, value: unknown) {
   }
 }
 
-export default function GoalsBoard({ accounts }: { accounts: AccountForGoals[] }) {
+export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { accounts: AccountForGoals[]; storageNs?: string; seedGoals?: Goal[] }) {
+  const STORE_KEY = storeKey(storageNs);
+  const BASIS_KEY = basisKey(storageNs);
   const [goals, setGoals] = useState<Goal[]>([]);
   const [basis, setBasis] = useState<ReturnBasis>("mix");
   const [selected, setSelected] = useState<string | null>(null);
@@ -59,16 +65,16 @@ export default function GoalsBoard({ accounts }: { accounts: AccountForGoals[] }
   // Load after mount so server and client render the same first frame
   useEffect(() => {
     const known = new Set(accounts.map((a) => a.id));
-    const gs = sanitizeGoals(readStore(STORE_KEY, [])).map((g) => ({
+    const gs = sanitizeGoals(seedGoals && neverStored(STORE_KEY) ? seedGoals : readStore(STORE_KEY, [])).map((g) => ({
       ...g,
       sources: g.sources.filter((s) => known.has(s.accountId)),
     }));
     setGoals(gs);
     setBasis(readStore<ReturnBasis>(BASIS_KEY, "mix") === "past" ? "past" : "mix");
     setLoaded(true);
-  }, [accounts]);
-  useEffect(() => { if (loaded) writeStore(STORE_KEY, goals); }, [goals, loaded]);
-  useEffect(() => { if (loaded) writeStore(BASIS_KEY, basis); }, [basis, loaded]);
+  }, [accounts, seedGoals, STORE_KEY, BASIS_KEY]);
+  useEffect(() => { if (loaded) writeStore(STORE_KEY, goals); }, [goals, loaded, STORE_KEY]);
+  useEffect(() => { if (loaded) writeStore(BASIS_KEY, basis); }, [basis, loaded, BASIS_KEY]);
 
   useEffect(() => {
     const el = laneRef.current;

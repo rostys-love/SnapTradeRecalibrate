@@ -65,22 +65,27 @@ export async function fetchAllActivities(snaptrade: PersonalClient, accountId: s
   });
 }
 
+/** `snaptrade` may be null when total, balances and activities are all passed in `opts.prefetched`. */
 export async function reconstructAccount(
-  snaptrade: PersonalClient,
+  snaptrade: PersonalClient | null,
   accountId: string,
   opts: ReconstructOptions = {},
 ): Promise<AccountView> {
   const tolerancePct = opts.tolerancePct ?? 3;
 
   const pre = opts.prefetched ?? {};
+  const live = () => {
+    if (!snaptrade) throw new Error("No SnapTrade client: pass total, balances and activities in opts.prefetched");
+    return snaptrade;
+  };
   const [total, balancesData, activities] = await Promise.all([
     pre.total !== undefined
       ? Promise.resolve(pre.total as any)
-      : withRetry(() => snaptrade.accountInformation.getUserAccountDetails({ accountId })).then(
+      : withRetry(() => live().accountInformation.getUserAccountDetails({ accountId })).then(
           (d) => (d.data as any)?.balance?.total,
         ),
-    pre.balances ?? withRetry(() => snaptrade.accountInformation.getUserAccountBalance({ accountId })).then((b) => b.data as any[]),
-    pre.activities ?? fetchAllActivities(snaptrade, accountId),
+    pre.balances ?? withRetry(() => live().accountInformation.getUserAccountBalance({ accountId })).then((b) => b.data as any[]),
+    pre.activities ?? fetchAllActivities(live(), accountId),
   ]);
 
   const currency: string = total?.currency ?? "CAD";
