@@ -40,6 +40,7 @@ function readStore<T>(key: string, fallback: T): T {
 function writeStore(key: string, value: unknown) {
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    window.dispatchEvent(new Event("pc-goals-changed")); // the Need money page re-reads goals
   } catch {
     /* storage unavailable: goals still work for this visit */
   }

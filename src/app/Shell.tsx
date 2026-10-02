@@ -38,6 +38,14 @@ export default function Shell({ tabs, actions, notices }: { tabs: Tab[]; actions
     return () => window.removeEventListener("hashchange", sync);
   }, [idsKey]);
 
+  // On narrow phones the menu can scroll sideways: keep the current section's tab in view
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = navRef.current;
+    const link = nav?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (nav && link) nav.scrollTo({ left: link.offsetLeft - (nav.clientWidth - link.offsetWidth) / 2 });
+  }, [active]);
+
   return (
     <>
       <header className="appbar">
@@ -52,7 +60,7 @@ export default function Shell({ tabs, actions, notices }: { tabs: Tab[]; actions
             Port Calibrate
           </a>
           {tabs.length > 1 && (
-            <nav className="menu" aria-label="Sections">
+            <nav className="menu" aria-label="Sections" ref={navRef}>
               {tabs.map((t) => (
                 <a key={t.id} href={`#${t.id}`} aria-current={active === t.id ? "page" : undefined}>
                   {t.label}

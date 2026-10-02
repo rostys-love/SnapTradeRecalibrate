@@ -4,6 +4,8 @@ import type { AccountForGoals } from "@/lib/goals";
 import PastHoldings from "./PastHoldings";
 import ReturnsOverview from "./ReturnsOverview";
 import GoalsBoard from "./GoalsBoard";
+import WithdrawPlanner from "./WithdrawPlanner";
+import type { CreditLine, WithdrawAccount } from "@/lib/withdraw";
 import HoldingsTable from "./HoldingsTable";
 import Shell, { type Tab } from "./Shell";
 import { connectWealthsimple, logout } from "./actions";
@@ -152,6 +154,10 @@ function Overview({ portfolio }: { portfolio: Portfolio }) {
       </div>
 
       <div className="shortcuts">
+        <a className="shortcut card" href="#withdraw">
+          <b>Need money?</b>
+          <span>See which account to take it from so it costs you the least and your goals stay on track.</span>
+        </a>
         <a className="shortcut card" href="#goals">
           <b>Plan your goals</b>
           <span>Drop milestones on a 3, 5 and 10-year timeline and see which accounts can fund them.</span>
@@ -218,19 +224,30 @@ export default function DashboardView({ portfolio, loadError, justConnected, sig
 
   if (!ready || !portfolio) return <Shell tabs={[{ id: "overview", label: "Overview", content: null }]} actions={actions} notices={notices} />;
 
-  const goalAccounts = portfolio.accounts
-    .filter((a) => a.kind !== "line_of_credit" && a.totalCad > 0)
-    .map((a): AccountForGoals => ({
-      id: a.id,
-      label: a.label,
-      valueCad: a.totalCad,
-      mix: a.byAssetClass.length ? a.byAssetClass : [{ assetClass: "cash", value: a.totalCad }],
-      pastReturnPct: a.returns?.annualReturnPct ?? null,
-    }));
+  const funded = portfolio.accounts.filter((a) => a.kind !== "line_of_credit" && a.totalCad > 0);
+  const forGoals = (a: AccountSummary): AccountForGoals => ({
+    id: a.id,
+    label: a.label,
+    valueCad: a.totalCad,
+    mix: a.byAssetClass.length ? a.byAssetClass : [{ assetClass: "cash", value: a.totalCad }],
+    pastReturnPct: a.returns?.annualReturnPct ?? null,
+  });
+  const goalAccounts = funded.map(forGoals);
+  // Only what the planner needs goes to the browser: no trade history or identifiers beyond the account id
+  const withdrawAccounts = funded.filter((a) => !a.error).map((a): WithdrawAccount => ({
+    ...forGoals(a),
+    taxType: a.taxType ?? (a.kind === "cash" ? "cash" : "taxable"),
+    cashCad: a.cashCad,
+    canPick: a.kind === "self_directed",
+    holdings: a.holdings.map((h) => ({ ticker: h.ticker, name: h.name, assetClass: h.assetClass, valueCad: h.valueCad, costCad: h.costCad })),
+  }));
+  const locAccount = portfolio.accounts.find((a) => a.kind === "line_of_credit");
+  const creditLine: CreditLine | null = locAccount ? { id: locAccount.id, label: locAccount.label, owedCad: Math.abs(locAccount.totalCad) } : null;
 
   const tabs: Tab[] = [
     { id: "overview", label: "Overview", content: <Overview portfolio={portfolio} /> },
     { id: "goals", label: "Goals", content: <GoalsBoard accounts={goalAccounts} /> },
+    { id: "withdraw", label: "Need money", content: <WithdrawPlanner accounts={withdrawAccounts} loc={creditLine} /> },
     { id: "growth", label: "Growth", content: <ReturnsOverview portfolio={portfolio} /> },
     {
       id: "holdings",

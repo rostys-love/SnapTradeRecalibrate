@@ -15,7 +15,7 @@ Built for the [SnapTrade student project program](https://snaptrade.com/students
 | Holdings website (Next.js, deploys to Vercel) | Done: password gate, Connect Wealthsimple, holdings per account |
 | Live quotes (Finnhub) | Wired as optional provider; TSX coverage unverified |
 | Goals timeline (cards, funding, projections) | Done; saved in the browser |
-| "I need money" withdrawal planner | Next |
+| "I need money" withdrawal planner | Done, unit-tested (`src/lib/withdraw.ts`) |
 
 ## How it works
 
@@ -36,6 +36,7 @@ A private, single-user dashboard:
 - **Connect Wealthsimple.** Sends you to SnapTrade's hosted Connection Portal. **This site never sees your Wealthsimple password**; SnapTrade handles the login and MFA, then redirects back. If a connection becomes disabled, the same button repairs it.
 - **Holdings.** Every open account with its holdings, value in CAD (USD converted at the Bank of Canada daily rate), gain vs cost where known, and asset mix. Managed portfolios are rebuilt from activity history and labelled as such. A portfolio line of credit is shown as a liability.
 - **Your goals.** Pick a goal (emergency fund, car, house, baby, retirement, …), drag it along a Now → 20-year timeline to when you need the money, then drag or tap accounts onto it to fund it. Tapping an account gives only what the goal still needs; accounts can be split across goals but never past 100%. Each goal shows today's funding, an expected value at its date with a likely low–high range, and a status (on track, likely, short). Short goals get a one-tap "save $X more a month" fix, and mismatches are flagged (e.g. a goal under 3 years away funded mostly by stocks). Projections use either typical long-run returns for each account's mix or the account's own past return. Goals are saved in the browser for now.
+- **Need money.** Enter an amount, what it's for, and when you can put it back. The page shows the cheapest way to raise it (split across accounts if needed) and what it would cost to take it all from each account: missed growth, tax, and interest if you borrow on a line of credit. It uses money set aside for that purpose first, then money not promised to any goal, then goal money or borrowing (whichever is cheaper), and RRSP/FHSA last. Goals that would be set back are listed, self-directed accounts say what to sell, and the tax figures are rough estimates, not advice.
 - **Where your growth came from.** Per account: money put in (deposits and transfers in, minus withdrawals), value now, gain, its share of your total growth, and a money-weighted annual return (XIRR) once it has a year of history. Also totals fees and line-of-credit interest. Managed accounts are named by what they hold (Cash, Conservative, Balanced, Growth).
 - **Holding details (click a row).** Built from your activity history: when you first and last bought, how long you've held it, every buy and sell, average cost and realized gains (average-cost method, as used for Canadian ACB), and dividends received with yield on cost. Managed holdings get a cost basis this way too. With `FINNHUB_API_KEY` set, US listings also show today's change, your position's move in CAD, beta and the 52-week range. Finnhub's free plan generally doesn't cover TSX listings; those rows say so. Wealthsimple-held assets such as physical gold are never looked up, since their tickers collide with unrelated stocks.
 
@@ -50,6 +51,8 @@ src/lib/history.ts        purchase history, holding dates, dividends, average co
 src/lib/returns.ts        money in, gain, fees, money-weighted annual return (tested)
 src/lib/goals.ts          goal projections, funding splits, timeline scale (tested)
 src/app/GoalsBoard.tsx    drag-and-drop goals timeline and editor
+src/lib/withdraw.ts       cost of taking money from each account, recommended plan (tested)
+src/app/WithdrawPlanner.tsx  the "Need money" page
 src/lib/finnhub.ts        cached Finnhub quotes and metrics
 src/app/HoldingsTable.tsx expandable holdings table
 src/lib/session.ts        signed session cookie (tested)

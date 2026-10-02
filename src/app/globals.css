@@ -368,3 +368,80 @@ details.method li.note { color: var(--warn-ink); }
 .editor { grid-template-columns: minmax(0, 1fr); }
 .editor > * { min-width: 0; }
 .field input[type="number"], .field input[type="month"] { width: 100%; box-sizing: border-box; min-width: 0; }
+
+/* ---------- Need money ---------- */
+.wd-ask { padding: 20px; }
+.wd-head h2 { font-size: 16px; margin: 0 0 2px; font-weight: 600; }
+.wd-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 18px 24px; margin-top: 16px; }
+.wd-form .field > label, .wd-form .field > span { color: var(--muted); }
+.wd-amount { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 4px 14px; background: var(--surface); }
+.wd-amount:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.wd-amount span { font-size: 22px; font-weight: 650; color: var(--muted); }
+.wd > * + * { margin-top: 16px; }
+.wd-amount input[type="number"] { flex: 1; min-width: 0; width: 100%; border: 0; outline: 0; background: transparent; color: var(--text); font: inherit; font-size: 26px; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; padding: 4px 0; border-radius: 0; appearance: textfield; -moz-appearance: textfield; }
+.wd-amount input::-webkit-outer-spin-button, .wd-amount input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.wd-quick, .wd-seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.wd-quick button, .wd-seg button { all: unset; cursor: pointer; padding: 6px 12px; border-radius: 999px; background: var(--chip); color: var(--muted); font-size: 13px; font-weight: 550; }
+.wd-quick button:hover, .wd-seg button:hover { color: var(--text); }
+.wd-quick button.on, .wd-seg button.on { background: var(--accent); color: var(--accent-ink); }
+.wd-quick button:focus-visible, .wd-seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wd-form select { font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); width: 100%; min-width: 0; }
+
+.wd-plan { border-radius: 24px; padding: 22px 24px; background: var(--surface); border: 2px solid var(--accent); box-shadow: 0 10px 30px rgba(13, 110, 67, 0.12); display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
+.wd-plan-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.wd-plan-head .hero-k { color: var(--accent-strong); font-weight: 600; opacity: 1; }
+.wd-plan-head h3 { margin: 2px 0 0; font-size: 24px; letter-spacing: -0.02em; line-height: 1.2; }
+.wd-plan-cost { text-align: right; display: grid; }
+.wd-plan-cost b { font-size: 28px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.wd-plan-cost span { font-size: 12px; color: var(--muted); max-width: 220px; }
+.wd-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.wd-parts > li { background: var(--accent-soft); border-radius: 16px; padding: 14px 16px; }
+.wd-part-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.wd-part-amt { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.wd-part-from { font-size: 15px; }
+.wd-why { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--accent-strong); background: var(--surface); border-radius: 999px; padding: 2px 10px; }
+.wd-part-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+.wd-sells { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; }
+.wd-sells li { display: flex; justify-content: space-between; gap: 12px; background: var(--surface); border-radius: 10px; padding: 6px 10px; }
+.wd-opt .wd-sells li { background: var(--chip); }
+.wd-more { font-size: 13px; color: var(--muted); margin-top: 8px; }
+.wd-more summary { cursor: pointer; }
+.wd-notes { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.wd-plan-foot { display: grid; gap: 6px; font-size: 14px; }
+.wd-ok { color: var(--gain); font-weight: 600; font-size: 13px; margin: 0; }
+.wd-ok::before { content: "✓ "; }
+.wd-hits { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--warn-ink); }
+.wd-hits li { background: var(--warn-bg); border-radius: 10px; padding: 6px 10px; }
+
+.wd-legend { font-size: 12px; color: var(--muted); display: inline-flex; gap: 4px 12px; align-items: center; flex-wrap: wrap; }
+.wd-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: -6px; }
+.wd-legend .g, .wd-bar .g { background: var(--accent); }
+.wd-legend .t, .wd-bar .t { background: #d4a72c; }
+.wd-legend .i, .wd-bar .i { background: #4f8196; }
+.wd-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-top: 12px !important; align-items: start; }
+.wd-opt { padding: 16px 18px; display: grid; gap: 10px; grid-template-columns: minmax(0, 1fr); }
+.wd-opt.best { border-color: var(--accent); }
+.wd-opt.off { opacity: 0.7; box-shadow: none; }
+.wd-opt-top { display: flex; justify-content: space-between; gap: 12px; }
+.wd-opt h3 { margin: 0; font-size: 15px; }
+.wd-opt-cost { text-align: right; display: grid; align-content: start; }
+.wd-opt-cost b { font-size: 22px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.wd-opt-cost span { font-size: 11px; color: var(--muted); }
+.wd-bar { display: flex; height: 8px; border-radius: 999px; background: var(--chip); overflow: hidden; }
+.wd-bar > div { height: 100%; min-width: 0; }
+.wd-opt-line { margin: 0; font-size: 13px; }
+.wd-settings { padding: 14px 20px; font-size: 13px; color: var(--muted); }
+.wd-settings > summary { cursor: pointer; font-size: 14px; }
+.wd-settings .ed-grid { margin: 14px 0 6px; color: var(--text); }
+.wd-check input { accent-color: var(--accent); margin-right: 6px; }
+@media (max-width: 640px) {
+  .wd-plan { padding: 18px 16px; }
+  .wd-plan-head h3 { font-size: 20px; }
+  .wd-plan-cost { text-align: left; }
+  .wd-why { margin-left: 0; }
+  .wd-ask { padding: 16px; }
+}
+@media (max-width: 480px) {
+  .menu { gap: 2px; }
+  .menu a { padding: 7px 2px; font-size: 12px; letter-spacing: -0.01em; }
+}

@@ -8,7 +8,7 @@ import { buildHistories } from "./history";
 import { accountReturns, combinedReturns, extractFlows } from "./returns";
 import { friendlyError as errMsg } from "./errors";
 import {
-  AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, attachDetails, attachMarket,
+  AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, accountTaxType, attachDetails, attachMarket,
   disambiguateLabels, groupByAssetClass, normalizePositions, positionList, previouslyHeld, splitResiduals,
 } from "./positions";
 
@@ -59,6 +59,7 @@ async function loadAccount(a: any): Promise<AccountSummary> {
     id: a.id,
     label: accountLabel(a.raw_type, kind),
     kind,
+    taxType: accountTaxType(a.raw_type, unified, kind),
     status: "live",
     totalCad: num(a.balance?.total?.amount),
     cashCad: 0,
@@ -189,7 +190,7 @@ export async function getPortfolio(): Promise<Portfolio> {
     const a = visible[i];
     const kind = accountKind(a.meta?.unifiedAccountType, a.account_category);
     return {
-      id: a.id, label: accountLabel(a.raw_type, kind), kind, status: "error",
+      id: a.id, label: accountLabel(a.raw_type, kind), kind, taxType: accountTaxType(a.raw_type, a.meta?.unifiedAccountType, kind), status: "error",
       totalCad: num(a.balance?.total?.amount), cashCad: 0, holdings: [], pastHoldings: [], byAssetClass: [],
       warnings: [], error: errMsg(r.reason),
     };

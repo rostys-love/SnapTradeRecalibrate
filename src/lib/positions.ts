@@ -73,10 +73,14 @@ export interface PastHolding {
 export type AccountKind = "self_directed" | "managed" | "cash" | "line_of_credit" | "other";
 export type AccountStatus = "live" | "reconstructed" | "estimated" | "mismatch" | "no_reference" | "error";
 
+/** How withdrawals are taxed. "locked" covers accounts you can't freely take money from (RESP, LIRA, RRIF…). */
+export type AccountTaxType = "tfsa" | "rrsp" | "fhsa" | "taxable" | "cash" | "locked";
+
 export interface AccountSummary {
   id: string;
   label: string;
   kind: AccountKind;
+  taxType?: AccountTaxType;
   status: AccountStatus;
   totalCad: number;            // as reported by the brokerage (negative for a line of credit)
   cashCad: number;
@@ -101,6 +105,17 @@ export function accountKind(unifiedType: string | undefined, category: string | 
   for (const [re, kind] of KIND_FROM_UNIFIED) if (unifiedType && re.test(unifiedType)) return kind;
   if (category === "DEPOSIT") return "cash";
   return "other";
+}
+
+/** Registered type wins over the account kind: a TFSA savings account is still a TFSA. */
+export function accountTaxType(rawType: string | undefined, unifiedType: string | undefined, kind: AccountKind): AccountTaxType {
+  const words = new Set(`${rawType ?? ""} ${unifiedType ?? ""}`.toUpperCase().split(/[^A-Z]+/));
+  const has = (...names: string[]) => names.some((n) => words.has(n));
+  if (has("RESP", "LIRA", "LRSP", "RRIF", "LRIF", "PRIF", "LIF", "RDSP")) return "locked";
+  if (has("TFSA")) return "tfsa";
+  if (has("FHSA")) return "fhsa";
+  if (has("RRSP", "RSP")) return "rrsp";
+  return kind === "cash" ? "cash" : "taxable";
 }
 
 const KIND_LABEL: Record<AccountKind, string> = {
