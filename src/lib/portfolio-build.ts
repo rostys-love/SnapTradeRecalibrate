@@ -34,6 +34,8 @@ export interface Portfolio {
   connections: ConnectionStatus[];
   accounts: AccountSummary[];
   hiddenAccounts: number;    // closed, archived, or under $1
+  /** What it took to build this view, shown on the Overview. */
+  stats: { activitiesRead: number; tradesRead: number; rebuiltAccounts: number; holdings: number };
   marketDataEnabled: boolean;
   combined: ReturnType<typeof combinedReturns> | null;
 }
@@ -62,6 +64,11 @@ function marketPriceProvider(src: PortfolioSource, seen: Map<string, MarketData>
   };
 }
 
+const historyStats = (activities: Activity[]) => ({
+  activities: activities.length,
+  trades: activities.filter((x) => ["BUY", "SELL"].includes((x.type ?? "").toUpperCase())).length,
+});
+
 async function loadAccount(src: PortfolioSource, a: any): Promise<AccountSummary> {
   const now = src.now ?? new Date();
   const unified: string | undefined = a.meta?.unifiedAccountType;
@@ -88,6 +95,7 @@ async function loadAccount(src: PortfolioSource, a: any): Promise<AccountSummary
     // Only the cost of borrowing matters here: interest and fees charged
     try {
       const acts = await src.activities(a.id);
+      base.history = historyStats(acts);
       const { toCad } = await buildToCad(src, new Set(acts.map((x) => x.currency?.code ?? "CAD")));
       base.returns = accountReturns(acts, base.totalCad, toCad, now);
       base.returns.warnings = [];
@@ -109,6 +117,7 @@ async function loadAccount(src: PortfolioSource, a: any): Promise<AccountSummary
   let activities: Activity[] = [];
   if (activitiesRes.status === "fulfilled") activities = activitiesRes.value;
   else base.warnings.push(`Activity history unavailable (${errMsg(activitiesRes.reason)}); purchase details hidden.`);
+  base.history = historyStats(activities);
 
   // Every currency we might convert: positions, cash, activity amounts, and USD for US listings
   const currencies = new Set<string>(["USD"]);
@@ -222,6 +231,12 @@ export async function buildPortfolio(src: PortfolioSource): Promise<Portfolio> {
     connections,
     accounts,
     hiddenAccounts: all.length - visible.length,
+    stats: {
+      activitiesRead: accounts.reduce((s, x) => s + (x.history?.activities ?? 0), 0),
+      tradesRead: accounts.reduce((s, x) => s + (x.history?.trades ?? 0), 0),
+      rebuiltAccounts: accounts.filter((x) => x.kind === "managed" && !["live", "error"].includes(x.status)).length,
+      holdings: accounts.reduce((s, x) => s + x.holdings.length, 0),
+    },
     marketDataEnabled: src.marketDataEnabled,
     combined: (() => {
       const invest = accounts.filter((x) => x.kind !== "line_of_credit" && x.flows?.length);

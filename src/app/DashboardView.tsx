@@ -99,6 +99,45 @@ function AccountCard({ account, marketDataEnabled, sample }: { account: AccountS
   );
 }
 
+const count = new Intl.NumberFormat("en-CA");
+const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
+
+/** What SnapTrade supplied and what the app did with it. */
+function DataStrip({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) {
+  const { stats } = portfolio;
+  const brokers = [...new Set(portfolio.connections.map((c) => c.brokerage))];
+  const broker = brokers.length === 1 ? brokers[0] : "your brokerages";
+  const n = portfolio.accounts.length;
+  return (
+    <section className="strip card" aria-label="Where this data comes from">
+      <div className="strip-head">
+        <h2>Built on SnapTrade</h2>
+        <span className="chip ok">Read-only</span>
+      </div>
+      <ol className="strip-steps">
+        <li><b>{n}</b><span>{plural(n, "account", "accounts")} read from {broker}</span></li>
+        <li>
+          <b>{count.format(stats.activitiesRead)}</b>
+          <span>{plural(stats.activitiesRead, "transaction", "transactions")} of history, {count.format(stats.tradesRead)} of them trades</span>
+        </li>
+        {stats.rebuiltAccounts > 0 && (
+          <li><b>{stats.rebuiltAccounts}</b><span>managed {plural(stats.rebuiltAccounts, "portfolio", "portfolios")} rebuilt from {plural(stats.rebuiltAccounts, "its", "their")} trades</span></li>
+        )}
+        <li><b>{stats.holdings}</b><span>{plural(stats.holdings, "holding", "holdings")} with cost, gain and return worked out</span></li>
+      </ol>
+      <p className="strip-note">
+        {stats.rebuiltAccounts > 0 && (
+          <>{broker === "your brokerages" ? "Brokerages don’t" : `${broker} doesn’t`} share what’s inside managed portfolios, so Port Calibrate
+          reads every trade through SnapTrade, works out what is held today, and checks it against the reported balance. </>
+        )}
+        {demo
+          ? "In this demo the same steps run on sample data shaped like SnapTrade’s responses."
+          : "The connection is read-only, and your brokerage password never reaches this site."}
+      </p>
+    </section>
+  );
+}
+
 function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) {
   const totals = portfolioTotals(portfolio.accounts);
   const c = portfolio.combined;
@@ -124,6 +163,8 @@ function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) 
         </div>
       </section>
 
+      <DataStrip portfolio={portfolio} demo={demo} />
+
       <div className="sec-head">
         <h2>Accounts</h2>
         <a href="#holdings">See all holdings →</a>
@@ -133,11 +174,11 @@ function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) 
           const isDebt = a.kind === "line_of_credit";
           return (
             <a key={a.id} className={`acct-tile card ${isDebt ? "debt" : ""}`} href={`#holdings:${anchor(a)}`}>
+              <span className="at-name">{a.label}</span>
               <div className="at-top">
-                <span className="at-name">{a.label}</span>
+                <div className={`at-val ${isDebt ? "loss" : ""}`}>{cad.format(a.totalCad)}</div>
                 <ReturnBadge a={a} />
               </div>
-              <div className={`at-val ${isDebt ? "loss" : ""}`}>{cad.format(a.totalCad)}</div>
               {isDebt ? (
                 <div className="at-foot">Line of credit</div>
               ) : (

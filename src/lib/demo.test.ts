@@ -24,6 +24,10 @@ test("demo: the whole pipeline runs on the sample data with nothing flagged", as
   const t = portfolioTotals(p.accounts);
   assert.ok(t.assets > 40000 && t.assets < 60000, String(t.assets));
   assert.equal(t.liabilities, 2400);
+  // what the Overview's "Built on SnapTrade" strip reports
+  assert.equal(p.stats.rebuiltAccounts, 2);
+  assert.equal(p.stats.holdings, 12);
+  assert.ok(p.stats.tradesRead > 200 && p.stats.tradesRead < p.stats.activitiesRead);
 });
 
 test("demo: managed portfolios come with no positions and are rebuilt from history to the reported total", async () => {

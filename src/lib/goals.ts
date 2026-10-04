@@ -100,6 +100,21 @@ export function accountRate(acc: AccountForGoals, basis: ReturnBasis) {
   };
 }
 
+/** How much of each asset class a stock-market drop takes with it. Bonds, gold and cash are left alone. */
+const DROP_EXPOSURE: Record<AssetClass, number> = { equity: 1, crypto: 1, other: 0.5, bond: 0, gold: 0, cash: 0 };
+export const MARKET_DROP = 0.2;
+
+/** The same accounts after stocks fall by `drop` (0.2 = 20%) today. Returns new objects. */
+export function stressAccounts<T extends AccountForGoals>(accounts: T[], drop: number = MARKET_DROP): T[] {
+  return accounts.map((a) => {
+    const before = a.mix.reduce((s, m) => s + Math.max(m.value, 0), 0);
+    if (before <= 0) return a;
+    const mix = a.mix.map((m) => ({ ...m, value: Math.max(m.value, 0) * (1 - drop * DROP_EXPOSURE[m.assetClass]) }));
+    const after = mix.reduce((s, m) => s + m.value, 0);
+    return { ...a, mix, valueCad: a.valueCad * (after / before) };
+  });
+}
+
 /** Future value of a monthly contribution stream. */
 export function fvMonthly(monthly: number, rate: number, years: number) {
   const n = Math.round(years * 12);

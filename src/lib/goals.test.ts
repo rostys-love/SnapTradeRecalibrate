@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   type AccountForGoals, type Goal, accountRate, addYears, allocationUsage, assignAccount, effectiveTarget,
-  fvMonthly, positionToYears, projectGoal, sanitizeGoals, setShare, yearsToPosition,
+  fvMonthly, positionToYears, projectGoal, sanitizeGoals, setShare, stressAccounts, yearsToPosition,
 } from "./goals";
 
 const NOW = new Date("2026-10-01T00:00:00Z");
@@ -111,4 +111,24 @@ test("tapping an account gives only what the goal still needs", () => {
   assert.equal(gs[0].sources.find((s) => s.accountId === "stk")!.share, 0.6);
   // without account data it falls back to everything that's free
   assert.equal(assignAccount([goal({ id: "x" })], "x", "cash")[0].sources[0].share, 1);
+});
+
+test("market drop: stocks fall, cash and bonds don't, and goals funded by stocks slip", () => {
+  const mixed: AccountForGoals = { id: "mx", label: "Mixed", valueCad: 10000, pastReturnPct: null,
+    mix: [{ assetClass: "equity", value: 6000 }, { assetClass: "bond", value: 3000 }, { assetClass: "cash", value: 1000 }] };
+  const [c, s, m] = stressAccounts([cash, stocks, mixed], 0.2);
+  assert.equal(c.valueCad, 20000);
+  assert.equal(s.valueCad, 8000);
+  assert.ok(Math.abs(m.valueCad - 8800) < 1e-9);
+  assert.deepEqual(m.mix.map((x) => Math.round(x.value)), [4800, 3000, 1000]);
+  assert.equal(stocks.valueCad, 10000, "the originals are not changed");
+  // a goal that was just reachable on stocks is short after the drop
+  const g = goal({ target: 12000, date: addYears(NOW, 3), sources: [{ accountId: "stk", share: 1 }] });
+  assert.equal(projectGoal(g, ACCS, "mix", NOW).status, "likely");
+  const after = projectGoal(g, stressAccounts(ACCS), "mix", NOW);
+  assert.equal(after.status, "short");
+  assert.ok(after.gap > 2000);
+  // the same goal on cash is untouched
+  const onCash = goal({ target: 12000, sources: [{ accountId: "cash", share: 0.6 }] });
+  assert.equal(projectGoal(onCash, stressAccounts(ACCS), "mix", NOW).expected, projectGoal(onCash, ACCS, "mix", NOW).expected);
 });

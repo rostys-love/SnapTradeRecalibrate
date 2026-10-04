@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ASSUMPTIONS, TEMPLATES, accountRate, addYears, allocationUsage, assignAccount, effectiveTarget, iconFor,
+  ASSUMPTIONS, MARKET_DROP, TEMPLATES, accountRate, stressAccounts, addYears, allocationUsage, assignAccount, effectiveTarget, iconFor,
   positionToYears, projectGoal, sanitizeGoals, setShare, yearsToPosition, yearsUntil,
   type AccountForGoals, type Goal, type GoalKind, type GoalProjection, type ReturnBasis,
 } from "@/lib/goals";
@@ -57,6 +57,7 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
   const [basis, setBasis] = useState<ReturnBasis>("mix");
   const [selected, setSelected] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [shock, setShock] = useState(false); // "what if stocks drop": a what-if view, never saved
   const [drag, setDrag] = useState<Drag | null>(null);
   const [laneWidth, setLaneWidth] = useState(800);
   const laneRef = useRef<HTMLDivElement>(null);
@@ -84,10 +85,38 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
     return () => ro.disconnect();
   }, []);
 
-  const projections = useMemo(
+  const baseProjections = useMemo(
     () => new Map(goals.map((g) => [g.id, projectGoal(g, accounts, basis, now)])),
     [goals, accounts, basis, now],
   );
+  // What-if: the same goals projected from accounts after stocks fall today
+  const stressed = useMemo(() => stressAccounts(accounts, MARKET_DROP), [accounts]);
+  const projections = useMemo(
+    () => (shock ? new Map(goals.map((g) => [g.id, projectGoal(g, stressed, basis, now)])) : baseProjections),
+    [shock, goals, stressed, basis, now, baseProjections],
+  );
+  const dropPct = Math.round(MARKET_DROP * 100);
+  const lossCad = accounts.reduce((s, a, i) => s + (a.valueCad - stressed[i].valueCad), 0);
+  const shockLines = shock
+    ? goals.map((g) => {
+        const before = baseProjections.get(g.id)!;
+        const after = projections.get(g.id)!;
+        if (before.fundedNow <= 0) return { id: g.id, tone: "none", text: `${g.name}: not funded yet` };
+        if (before.fundedNow - after.fundedNow < 1) return { id: g.id, tone: "ok", text: `${g.name}: untouched, it isn’t in stocks` };
+        if (after.status === "short")
+          return {
+            id: g.id, tone: "bad",
+            text: before.status === "short"
+              ? `${g.name}: short by ${cad0.format(after.gap)} instead of ${cad0.format(before.gap)}`
+              : `${g.name}: goes from ${STATUS[before.status].text.toLowerCase()} to short by ${cad0.format(after.gap)}`,
+          };
+        return {
+          id: g.id, tone: after.status === before.status ? "ok" : "mid",
+          text: `${g.name}: loses ${cad0.format(before.fundedNow - after.fundedNow)} today but is ${after.status === before.status ? "still" : "now only"} ${STATUS[after.status].text.toLowerCase()}`,
+        };
+      })
+    : [];
+  const hitIds = new Set(shockLines.filter((l) => l.tone === "bad" || l.tone === "mid").map((l) => l.id));
   const usage = useMemo(() => allocationUsage(goals), [goals]);
   const sel = goals.find((g) => g.id === selected) ?? null;
 
@@ -206,13 +235,19 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
             Add a goal, drag it to when you need the money, then drop accounts on it to fund it.
           </p>
         </div>
-        <div className="basis" role="radiogroup" aria-label="Project growth using">
-          <button role="radio" aria-checked={basis === "mix"} className={basis === "mix" ? "on" : ""} onClick={() => setBasis("mix")}>
-            Typical returns
+        <div className="goals-controls">
+          <button type="button" role="switch" aria-checked={shock} className={`shock-switch ${shock ? "on" : ""}`} onClick={() => setShock((v) => !v)}>
+            <span className="knob" aria-hidden />
+            What if stocks drop {dropPct}%?
           </button>
-          <button role="radio" aria-checked={basis === "past"} className={basis === "past" ? "on" : ""} onClick={() => setBasis("past")}>
-            My past returns
-          </button>
+          <div className="basis" role="radiogroup" aria-label="Project growth using">
+            <button role="radio" aria-checked={basis === "mix"} className={basis === "mix" ? "on" : ""} onClick={() => setBasis("mix")}>
+              Typical returns
+            </button>
+            <button role="radio" aria-checked={basis === "past"} className={basis === "past" ? "on" : ""} onClick={() => setBasis("past")}>
+              My past returns
+            </button>
+          </div>
         </div>
       </div>
 
@@ -253,7 +288,7 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
               <div key={g.id}>
                 <div className="pin" style={{ left: `${pct}%`, height: row * (CARD_H + 10) + 18 }} aria-hidden />
                 <div
-                  className={`gcard ${isSel ? "sel" : ""} ${isDrop ? "drop" : ""} st-${st.tone}`}
+                  className={`gcard ${isSel ? "sel" : ""} ${isDrop ? "drop" : ""} ${hitIds.has(g.id) ? "hit" : ""} st-${st.tone}`}
                   data-goal-id={g.id}
                   style={{ left: `${left}%`, top: 34 + row * (CARD_H + 10), width: CARD_W }}
                   onPointerDown={(e) => {
@@ -293,12 +328,28 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
         </div>
       </div>
 
+      {shock && (
+        <div className="shock" role="status">
+          <div className="shock-head">
+            <strong>If stocks fell {dropPct}% today</strong>
+            <span>your accounts would be worth {cad0.format(lossCad)} less.</span>
+          </div>
+          {shockLines.length > 0 ? (
+            <ul>{shockLines.map((l) => <li key={l.id} className={l.tone}>{l.text}</li>)}</ul>
+          ) : (
+            <p>Add a goal to see how it would hold up.</p>
+          )}
+          <p className="shock-note">Assumes stocks and crypto fall {dropPct}% now and then grow at the usual rate. Bonds, gold and cash are left unchanged. Nothing is saved; switch it off to go back.</p>
+        </div>
+      )}
+
       <div className="chips" aria-label="Your accounts">
         <span className="chips-label">
           {sel ? `Fund “${sel.name}”: tap or drag an account` : "Drag an account onto a goal to fund it"}
         </span>
-        {accounts.map((a) => {
+        {accounts.map((a, i) => {
           const free = freeShare(a.id);
+          const shown = shock ? stressed[i].valueCad : a.valueCad;
           return (
             <button
               key={a.id}
@@ -314,7 +365,7 @@ export default function GoalsBoard({ accounts, storageNs = "pc", seedGoals }: { 
               aria-label={`${a.label}, ${cad0.format(a.valueCad)}, ${Math.round(free * 100)}% unassigned`}
             >
               <span className="ca-name">{a.label}</span>
-              <span className="ca-val">{cad0.format(a.valueCad)}</span>
+              <span className={`ca-val ${shock && a.valueCad - shown >= 1 ? "loss" : ""}`}>{cad0.format(shown)}</span>
               <span className="ca-free" aria-hidden><span style={{ width: `${free * 100}%` }} /></span>
             </button>
           );

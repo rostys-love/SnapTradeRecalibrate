@@ -81,6 +81,7 @@ export interface AccountSummary {
   label: string;
   kind: AccountKind;
   taxType?: AccountTaxType;
+  history?: { activities: number; trades: number }; // how much brokerage history was read for this account
   status: AccountStatus;
   totalCad: number;            // as reported by the brokerage (negative for a line of credit)
   cashCad: number;
