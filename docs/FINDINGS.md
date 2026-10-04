@@ -8,6 +8,8 @@ Findings from probing a live Wealthsimple connection through SnapTrade (October 
 - `raw_type` only says `TFSA`, `RRSP`, `PERSONAL`, `CASH`, `CRYPTO`, etc. It does **not** distinguish managed from self-directed.
 - The managed/self-directed distinction is in `meta.unifiedAccountType`, e.g. `MANAGED_PORTFOLIO_TFSA`, `SELF_DIRECTED_TFSA`, `MANAGED_SAVE`, `HISA_TFSA`, `PORTFOLIO_LINE_OF_CREDIT`. SnapTrade marks `meta` as deprecated, so the app should let users confirm or relabel accounts.
 - A portfolio line of credit appears as an account with `account_category: "LOC"` and a **negative** total. Treat it as a liability, not an investment.
+- Paper-trading brokerages (e.g. Alpaca Paper) come back in the same account list with `is_paper: true` and a pretend balance, often in USD. They must be left out of totals; the app drops them and any connection that has only paper accounts.
+- A connection's `type` is `read` or `trade`. One created outside this app (for example from the SnapTrade dashboard) may be `trade`, so don't describe a connection as read-only without checking it.
 
 ## Positions (`getAllAccountPositions`)
 

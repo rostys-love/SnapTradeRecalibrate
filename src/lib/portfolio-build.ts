@@ -14,6 +14,7 @@ export interface ConnectionStatus {
   id: string;
   brokerage: string;
   disabled: boolean;
+  canTrade: boolean; // the connection was granted trading permission (this app never uses it)
 }
 
 /** Where the raw data comes from. Shapes follow SnapTrade's REST responses. */
@@ -34,6 +35,7 @@ export interface Portfolio {
   connections: ConnectionStatus[];
   accounts: AccountSummary[];
   hiddenAccounts: number;    // closed, archived, or under $1
+  paperAccounts: number;     // practice accounts holding pretend money, left out entirely
   /** What it took to build this view, shown on the Overview. */
   stats: { activitiesRead: number; tradesRead: number; rebuiltAccounts: number; holdings: number };
   marketDataEnabled: boolean;
@@ -196,12 +198,26 @@ async function loadAccount(src: PortfolioSource, a: any): Promise<AccountSummary
 
 export async function buildPortfolio(src: PortfolioSource): Promise<Portfolio> {
   const now = src.now ?? new Date();
-  const [all, rawConnections] = await Promise.all([src.accounts(), src.connections()]);
+  const [everyAccount, rawConnections] = await Promise.all([src.accounts(), src.connections()]);
 
-  const connections: ConnectionStatus[] = rawConnections.map((c) => ({
+  // Paper-trading accounts hold pretend money, so they never count towards anything
+  const connectionOf = (a: any): string | undefined =>
+    typeof a.brokerage_authorization === "string" ? a.brokerage_authorization : a.brokerage_authorization?.id;
+  const all = everyAccount.filter((a) => !a.is_paper);
+  const paperOnly = new Set(
+    rawConnections
+      .map((c) => c.id as string)
+      .filter((id) => {
+        const theirs = everyAccount.filter((a) => connectionOf(a) === id);
+        return theirs.length > 0 && theirs.every((a) => a.is_paper);
+      }),
+  );
+
+  const connections: ConnectionStatus[] = rawConnections.filter((c) => !paperOnly.has(c.id)).map((c) => ({
     id: c.id,
     brokerage: c.brokerage?.display_name ?? c.brokerage?.name ?? "Brokerage",
     disabled: Boolean(c.disabled),
+    canTrade: c.type === "trade",
   }));
 
   const visible = all.filter((a) => a.status === "open" && Math.abs(num(a.balance?.total?.amount)) >= 1);
@@ -232,6 +248,7 @@ export async function buildPortfolio(src: PortfolioSource): Promise<Portfolio> {
     connections,
     accounts,
     hiddenAccounts: all.length - visible.length,
+    paperAccounts: everyAccount.length - all.length,
     stats: {
       activitiesRead: accounts.reduce((s, x) => s + (x.history?.activities ?? 0), 0),
       tradesRead: accounts.reduce((s, x) => s + (x.history?.trades ?? 0), 0),

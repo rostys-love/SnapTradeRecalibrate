@@ -190,6 +190,7 @@ function generate(now: Date): DemoData {
 
   const account = (id: string, number: string, rawType: string, unified: string, category: string, total: number) => ({
     id, number, raw_type: rawType, status: "open", account_category: category, institution_name: "Wealthsimple",
+    brokerage_authorization: "demo-connection", is_paper: false,
     meta: { unifiedAccountType: unified }, balance: { total: { amount: r2(total), currency: "CAD" } },
   });
   const closed = (id: string, rawType: string) => ({ ...account(id, "0000", rawType, "SELF_DIRECTED_" + rawType, "INVESTMENT", 0), status: "closed" });
@@ -254,7 +255,7 @@ export function demoSource(now: Date = new Date()): PortfolioSource {
   return {
     now,
     accounts: async () => data.accounts,
-    connections: async () => [{ id: "demo-connection", brokerage: { display_name: "Wealthsimple" }, disabled: false }],
+    connections: async () => [{ id: "demo-connection", brokerage: { display_name: "Wealthsimple" }, disabled: false, type: "read" }],
     positions: async (id) => data.positions.get(id) ?? { results: [] },
     balances: async (id) => data.balances.get(id) ?? [],
     activities: async (id) => data.activities.get(id) ?? [],

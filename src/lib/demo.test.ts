@@ -98,3 +98,27 @@ test("demo: generated activities are all in the past", async () => {
     for (const a of await src.activities(id)) assert.ok(a.trade_date! < "2026-10-02", `${id} ${a.trade_date}`);
   }
 });
+
+test("paper-trading accounts hold pretend money and are left out of everything", async () => {
+  const base = demoSource(NOW);
+  const withPaper = {
+    ...base,
+    accounts: async () => [
+      ...(await base.accounts()),
+      { id: "paper-1", number: "P1", raw_type: null, status: "open", account_category: "INVESTMENT", is_paper: true,
+        brokerage_authorization: "paper-connection", meta: { type: "Margin" }, balance: { total: { amount: 100000, currency: "USD" } } },
+    ],
+    connections: async () => [
+      ...(await base.connections()),
+      { id: "paper-connection", brokerage: { display_name: "Paper Broker" }, disabled: false, type: "trade" },
+    ],
+  };
+  const [plain, p] = await Promise.all([buildPortfolio(base), buildPortfolio(withPaper)]);
+  assert.equal(p.paperAccounts, 1);
+  assert.equal(plain.paperAccounts, 0);
+  assert.equal(p.hiddenAccounts, plain.hiddenAccounts, "not counted as a closed account either");
+  assert.deepEqual(p.accounts.map((a) => a.id), plain.accounts.map((a) => a.id));
+  assert.deepEqual(portfolioTotals(p.accounts), portfolioTotals(plain.accounts));
+  assert.deepEqual(p.connections.map((c) => c.brokerage), ["Wealthsimple"], "a paper-only connection isn't listed");
+  assert.equal(p.connections[0].canTrade, false);
+});

@@ -110,11 +110,12 @@ function DataStrip({ portfolio, demo }: { portfolio: Portfolio; demo: boolean })
   const brokers = [...new Set(portfolio.connections.map((c) => c.brokerage))];
   const broker = brokers.length === 1 ? brokers[0] : "your brokerages";
   const n = portfolio.accounts.length;
+  const canTrade = portfolio.connections.some((c) => c.canTrade);
   return (
     <section className="strip card" aria-label="Where this data comes from">
       <div className="strip-head">
         <h2>Built on SnapTrade</h2>
-        <span className="chip ok">Read-only</span>
+        <span className="chip ok">{canTrade ? "Reads only, never trades" : "Read-only"}</span>
       </div>
       <ol className="strip-steps">
         <li><b>{n}</b><span>{plural(n, "account", "accounts")} read from {broker}</span></li>
@@ -134,7 +135,9 @@ function DataStrip({ portfolio, demo }: { portfolio: Portfolio; demo: boolean })
         )}
         {demo
           ? "In this demo the same steps run on sample data shaped like SnapTrade’s responses."
-          : "The connection is read-only, and your brokerage password never reaches this site."}
+          : canTrade
+            ? "Port Calibrate only reads your data and has no code that places trades. Your brokerage password never reaches this site."
+            : "The connection is read-only, and your brokerage password never reaches this site."}
       </p>
     </section>
   );
@@ -218,7 +221,8 @@ function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) 
 
       <p className="meta">
         {demo ? "Sample data" : <>Updated {new Date(portfolio.fetchedAt).toLocaleString("en-CA", { timeZone: "America/Halifax" })}</>}
-        {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`} · USD converted at{" "}
+        {portfolio.hiddenAccounts > 0 && ` · ${portfolio.hiddenAccounts} closed or under $1 hidden`}
+        {portfolio.paperAccounts > 0 && ` · ${portfolio.paperAccounts} paper-trading (practice) ${portfolio.paperAccounts === 1 ? "account" : "accounts"} left out`} · USD converted at{" "}
         {demo ? "a fixed sample rate" : "the Bank of Canada daily rate"}
       </p>
     </>
