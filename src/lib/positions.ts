@@ -35,12 +35,24 @@ export interface HoldingDetail {
   historyComplete: boolean;   // history explains the units held
 }
 
+export type Instrument = "stock" | "fund" | "other";
+
+/** Single stock or fund, from the brokerage's security type; falls back to the name when the type is missing. */
+export function instrumentOf(kindOrTypeCode: string | undefined, name: string): Instrument {
+  const k = (kindOrTypeCode ?? "").toLowerCase();
+  if (["etf", "et", "oef", "cef", "mutualfund", "ut"].includes(k)) return "fund";
+  if (["stock", "cs", "adr", "ad", "ps"].includes(k)) return "stock";
+  if (["crypto", "other"].includes(k)) return "other";
+  return /\b(etf|index|fund|portfolio|trust)\b/i.test(name) ? "fund" : name.trim() ? "stock" : "other";
+}
+
 export interface HoldingRow {
   key: string;                 // FIGI share class > FIGI > ticker; joins positions to activity history
   marketEligible: boolean;     // safe to look up on a public exchange feed
   ticker: string;
   name: string;
   assetClass: AssetClass;
+  instrument?: Instrument;     // a single company, or a fund that holds many
   units: number;
   price: number | null;        // in `currency`
   currency: string;
@@ -166,6 +178,7 @@ export function normalizePositions(
         ticker: inst.symbol ?? "?",
         name: inst.description ?? "",
         assetClass,
+        instrument: instrumentOf(kind, inst.description ?? ""),
         units,
         price,
         currency,

@@ -6,6 +6,8 @@ import PastHoldings from "./PastHoldings";
 import ReturnsOverview from "./ReturnsOverview";
 import GoalsBoard from "./GoalsBoard";
 import WithdrawPlanner from "./WithdrawPlanner";
+import CalibrateBoard from "./CalibrateBoard";
+import type { CalHolding } from "@/lib/calibrate";
 import type { CreditLine, WithdrawAccount } from "@/lib/withdraw";
 import HoldingsTable from "./HoldingsTable";
 import Shell, { type Tab } from "./Shell";
@@ -200,6 +202,10 @@ function Overview({ portfolio, demo }: { portfolio: Portfolio; demo: boolean }) 
           <b>Need money?</b>
           <span>See which account to take it from so it costs you the least and your goals stay on track.</span>
         </a>
+        <a className="shortcut card" href="#calibrate">
+          <b>Calibrate your mix</b>
+          <span>Compare what you hold with a rule like 60/40 and see the trades that would close the gap.</span>
+        </a>
         <a className="shortcut card" href="#goals">
           <b>Plan your goals</b>
           <span>Drop milestones on a 3, 5 and 10-year timeline and see which accounts can fund them.</span>
@@ -225,7 +231,7 @@ export interface DashboardProps {
   justConnected: boolean;
   signOut: boolean;
   /** Set for the sample-data demo: no connect button, separate browser storage, goals to start with. */
-  demo?: { seedGoals: Goal[] };
+  demo?: { seedGoals: Goal[]; seedPlay?: string[] };
 }
 
 const DEMO_NS = "pcdemo";
@@ -292,6 +298,11 @@ export default function DashboardView({ portfolio, loadError, justConnected, sig
     canPick: a.kind === "self_directed",
     holdings: a.holdings.map((h) => ({ ticker: h.ticker, name: h.name, assetClass: h.assetClass, valueCad: h.valueCad, costCad: h.costCad })),
   }));
+  const calHoldings = funded.filter((a) => !a.error).flatMap((a) => a.holdings.map((h): CalHolding => ({
+    accountId: a.id, accountLabel: a.label, taxType: a.taxType ?? "taxable", canPick: a.kind === "self_directed",
+    ticker: h.ticker, name: h.name, assetClass: h.assetClass, instrument: h.instrument ?? "other", valueCad: h.valueCad, costCad: h.costCad,
+  })));
+  const uninvestedCad = funded.reduce((s, a) => s + Math.max(0, a.totalCad - a.holdings.reduce((x, h) => x + h.valueCad, 0)), 0);
   const locAccount = portfolio.accounts.find((a) => a.kind === "line_of_credit");
   const creditLine: CreditLine | null = locAccount ? { id: locAccount.id, label: locAccount.label, owedCad: Math.abs(locAccount.totalCad) } : null;
 
@@ -299,6 +310,10 @@ export default function DashboardView({ portfolio, loadError, justConnected, sig
     { id: "overview", label: "Overview", content: <Overview portfolio={portfolio} demo={Boolean(demo)} /> },
     { id: "goals", label: "Goals", content: <GoalsBoard accounts={goalAccounts} storageNs={storageNs} seedGoals={demo?.seedGoals} /> },
     { id: "withdraw", label: "Need money", content: <WithdrawPlanner accounts={withdrawAccounts} loc={creditLine} storageNs={storageNs} seedGoals={demo?.seedGoals} /> },
+    {
+      id: "calibrate", label: "Calibrate",
+      content: <CalibrateBoard holdings={calHoldings} cashCad={uninvestedCad} storageNs={storageNs} seedPlay={demo?.seedPlay} />,
+    },
     { id: "growth", label: "Growth", content: <ReturnsOverview portfolio={portfolio} /> },
     {
       id: "holdings",

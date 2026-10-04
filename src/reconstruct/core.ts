@@ -30,6 +30,7 @@ export interface Holding {
   description: string;
   listingCurrency: string;
   assetClass: AssetClass;
+  typeCode?: string;        // SnapTrade security type, e.g. "et" (ETF) or "cs" (common stock)
   units: number;
   lastTradePrice: number | null;   // in activity currency (the account currency)
   lastTradeDate: string | null;
@@ -105,6 +106,7 @@ export function aggregateHoldings(activities: Activity[]): AggregateResult {
       h.lastTradePrice = price;
       h.lastTradeDate = dateOf(a);
     }
+    if (a.symbol.type?.code) h.typeCode = a.symbol.type.code;
     h.assetClass = classifyAssetClass(h.description, h.ticker, a.symbol.type?.code ?? "");
     map.set(key, h);
   }

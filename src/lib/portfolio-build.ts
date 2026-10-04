@@ -6,7 +6,7 @@ import { buildHistories } from "./history";
 import { accountReturns, combinedReturns, extractFlows } from "./returns";
 import { friendlyError as errMsg } from "./errors";
 import {
-  AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, accountTaxType, attachDetails, attachMarket,
+  AccountSummary, HoldingRow, MarketData, accountKind, accountLabel, accountTaxType, instrumentOf, attachDetails, attachMarket,
   disambiguateLabels, groupByAssetClass, normalizePositions, positionList, previouslyHeld, splitResiduals,
 } from "./positions";
 
@@ -172,6 +172,7 @@ async function loadAccount(src: PortfolioSource, a: any): Promise<AccountSummary
       ticker: h.ticker,
       name: h.description,
       assetClass: h.assetClass,
+      instrument: instrumentOf(h.typeCode, h.description),
       units: h.units,
       price: h.price,
       currency: h.priceSource === "quote" ? h.listingCurrency : view.currency,

@@ -16,6 +16,7 @@ Built for the [SnapTrade student project program](https://snaptrade.com/students
 | Live quotes (Finnhub) | Wired as optional provider; TSX coverage unverified |
 | Goals timeline (cards, funding, projections) | Done; saved in the browser |
 | "I need money" withdrawal planner | Done, unit-tested (`src/lib/withdraw.ts`) |
+| Calibrate: current mix vs a target rule, with suggested moves | Done, unit-tested (`src/lib/calibrate.ts`) |
 | Public demo on sample data | Done: `/demo`, or a keyless `DEMO_MODE=1` deployment |
 
 ## How it works
@@ -39,6 +40,7 @@ A private, single-user dashboard:
 - **Built on SnapTrade.** The Overview shows what was read and done: accounts read, transactions of history, managed portfolios rebuilt from their trades, and holdings with cost and return worked out.
 - **Your goals.** Pick a goal (emergency fund, car, house, baby, retirement, …), drag it along a Now → 20-year timeline to when you need the money, then drag or tap accounts onto it to fund it. Tapping an account gives only what the goal still needs; accounts can be split across goals but never past 100%. Each goal shows today's funding, an expected value at its date with a likely low–high range, and a status (on track, likely, short). Short goals get a one-tap "save $X more a month" fix, and mismatches are flagged (e.g. a goal under 3 years away funded mostly by stocks). Projections use either typical long-run returns for each account's mix or the account's own past return. A "What if stocks drop 20%?" switch re-projects every goal after a market fall and lists which ones would slip; it is a what-if view and saves nothing. Goals are saved in the browser for now.
 - **Need money.** Enter an amount, what it's for, and when you can put it back. The page shows the cheapest way to raise it (split across accounts if needed) and what it would cost to take it all from each account: missed growth, tax, and interest if you borrow on a line of credit. It uses money set aside for that purpose first, then money not promised to any goal, then goal money or borrowing (whichever is cheaper), and RRSP/FHSA last. Goals that would be set back are listed, self-directed accounts say what to sell, and the tax figures are rough estimates, not advice.
+- **Calibrate.** Pick a rule (30/30/30/10, classic 60/40, growth 80/20, or your own sliders) and see how your invested money compares, bucket by bucket: individual stocks, stock funds, bonds and play money, defined so nothing counts twice (a bond ETF is bonds, not a stock fund). It then lists the trades that would close the gap inside self-directed accounts, selling in TFSA/RRSP accounts first because sales there aren't taxed. Managed accounts count in the mix but can't be traded, and the page says how much of the gap sits in them. You tag which holdings are play money. The app can't place trades; these are suggestions, not advice.
 - **Where your growth came from.** Per account: money put in (deposits and transfers in, minus withdrawals), value now, gain, its share of your total growth, and a money-weighted annual return (XIRR) once it has a year of history. Also totals fees and line-of-credit interest. Managed accounts are named by what they hold (Cash, Conservative, Balanced, Growth).
 - **Holding details (click a row).** Built from your activity history: when you first and last bought, how long you've held it, every buy and sell, average cost and realized gains (average-cost method, as used for Canadian ACB), and dividends received with yield on cost. Managed holdings get a cost basis this way too. With `FINNHUB_API_KEY` set, US listings also show today's change, your position's move in CAD, beta and the 52-week range. Finnhub's free plan generally doesn't cover TSX listings; those rows say so. Wealthsimple-held assets such as physical gold are never looked up, since their tickers collide with unrelated stocks.
 
@@ -55,6 +57,8 @@ src/lib/goals.ts          goal projections, funding splits, timeline scale (test
 src/app/GoalsBoard.tsx    drag-and-drop goals timeline and editor
 src/lib/withdraw.ts       cost of taking money from each account, recommended plan (tested)
 src/app/WithdrawPlanner.tsx  the "Need money" page
+src/lib/calibrate.ts      buckets, target rules and suggested moves (tested)
+src/app/CalibrateBoard.tsx   the Calibrate page
 src/lib/finnhub.ts        cached Finnhub quotes and metrics
 src/app/HoldingsTable.tsx expandable holdings table
 src/lib/session.ts        signed session cookie (tested)

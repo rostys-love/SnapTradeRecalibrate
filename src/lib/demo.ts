@@ -275,6 +275,9 @@ export function demoSource(now: Date = new Date()): PortfolioSource {
   };
 }
 
+/** Holdings the demo person treats as play money on the Calibrate page. */
+export const DEMO_PLAY = ["SHOP.TO"];
+
 /** Goals the demo opens with, so the timeline and the withdrawal planner have something to show. */
 export function demoGoals(now: Date, cashTotal: number): Goal[] {
   const inMonths = (n: number) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + n, 1)).toISOString().slice(0, 10);
